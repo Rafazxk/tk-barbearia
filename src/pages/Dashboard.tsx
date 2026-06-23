@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useBarberContext } from "@/contexts/BarberContext";
+import React, { useState } from "react"; // 👈 Adicionado o import do React
+import { useBarber } from "@/contexts/BarberContext"; 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -11,8 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger, Calendar } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { AppointmentDialog } from "@/components/AppointmentDialog";
+import { api } from "@/lib/api"; 
 
-// Tipagens locais
 export interface Appointment {
   id: number;
   clienteNome: string;
@@ -65,7 +65,7 @@ function StatCard({ title, value, sub, icon: Icon, loading }: {
 }
 
 export default function Dashboard() {
-  const { user } = useBarberContext();
+  const { user } = useBarber(); 
   const activeBarberId = user?.id || null;
   const queryClient = useQueryClient();
   const [date, setDate] = useState<Date>(new Date());
@@ -75,43 +75,27 @@ export default function Dashboard() {
 
   const dateStr = format(date, "yyyy-MM-dd");
 
-  // Hook customizado local substituto
   const { data: summary, isLoading: summaryLoading } = useQuery<DashboardSummary>({
     queryKey: ["dashboardSummary", activeBarberId],
     queryFn: async () => {
-      // Mock inicial de dados numéricos e faturamento
-      return {
-        appointmentsToday: 4,
-        pendingCount: 2,
-        revenueToday: "180.00",
-        appointmentsThisWeek: 24,
-        topService: "Corte + Barba"
-      };
-    }
+      const response = await api.get(`/appointments/summary?barberId=${activeBarberId}`);
+      return response.data;
+    },
+    enabled: !!activeBarberId,
   });
 
-  // Hook de listagem local substituto
   const { data: appointments, isLoading: apptLoading } = useQuery<Appointment[]>({
     queryKey: ["appointments", dateStr, activeBarberId],
     queryFn: async () => {
-      return [
-        {
-          id: 1,
-          clienteNome: "Bruno Alcantara",
-          clienteTelefone: "81988887777",
-          dataHora: new Date().toISOString(),
-          totalPreco: "50.00",
-          totalDuracao: 40,
-          barbeiro: { id: 1, nome: "Rafael Silva" },
-          servicos: [{ id: 1, nome: "Corte + Barba" }]
-        }
-      ];
-    }
+      const response = await api.get(`/appointments?date=${dateStr}&barberId=${activeBarberId}`);
+      return response.data;
+    },
+    enabled: !!activeBarberId,
   });
 
   const deleteAppt = useMutation({
     mutationFn: async ({ id }: { id: number }) => {
-      console.log("Deletando agendamento:", id);
+      await api.delete(`/appointments/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
@@ -161,7 +145,11 @@ export default function Dashboard() {
         </div>
 
         {apptLoading ? (
-          <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
+          <div className="space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-16 w-full" />
+            ))}
+          </div>
         ) : !appointments?.length ? (
           <Card>
             <CardContent className="py-12 flex flex-col items-center text-center">

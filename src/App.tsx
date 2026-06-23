@@ -1,8 +1,8 @@
 import { useEffect } from "react";
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
-import { BarberProvider } from "@/contexts/BarberContext";
+import { BarberProvider, useBarber } from "@/contexts/BarberContext"; 
 import { AppLayout } from "@/components/layout/AppLayout";
 import Dashboard from "@/pages/Dashboard";
 import Appointments from "@/pages/Appointments";
@@ -14,6 +14,7 @@ import ServicesList from "@/pages/ServicesList";
 import ProductsList from "@/pages/ProductsList";
 import ScheduleBlocks from "@/pages/ScheduleBlocks";
 import SettingsLayout from "@/pages/SettingsLayout";
+import Login from "./pages/Login";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,7 +26,7 @@ function AdminRouter() {
   return (
     <AppLayout>
       <Switch>
-        {/* Deixamos apenas o Dashboard ativo por enquanto */}
+        {/* O Dashboard responde na raiz do Admin */}
         <Route path="/" component={Dashboard} />
         
         {/* Rotas administrativas */}
@@ -37,7 +38,6 @@ function AdminRouter() {
         <Route path="/servicos" component={ServicesList} />
         <Route path="/contas" component={BarberAccounts} />
 
-        
         <Route path="/configuracoes/barbearia">
           {() => <SettingsLayout abaInicial="barbearia" />}
         </Route>
@@ -62,28 +62,69 @@ function AdminRouter() {
   );
 }
 
+// 📦 Sub-componente criado para podermos usar o hook useBarber() dentro do escopo do BarberProvider
+function AppContent() {
+  const { isAuthenticated, loading, user } = useBarber(); 
+  const base = (import.meta.env.BASE_URL || "").replace(/\/$/, "");
+console.log("Roteador ->", { isAuthenticated, loading, user });
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-zinc-500 font-medium">
+        Carregando TK Barbearia...
+      </div>
+    );
+  }
+
+  return (
+    <WouterRouter base={base}>
+      <Switch>
+        {/* Rotas abertas independentes de login */}
+        <Route path="/agendar" component={Dashboard} />
+        <Route path="/landing" component={Dashboard} />
+
+        {/* Fluxo Condicional Limpo */}
+        {isAuthenticated ? (
+          <Switch>
+            {/* Se tentar forçar a barra indo no /login já logado, joga para a raiz */}
+            <Route path="/login">
+              <Redirect to="/" />
+            </Route>
+            
+            {/* Captura a raiz e todas as sub-rotas administrativas (/agendamentos, /clientes, etc.) */}
+            <Route path="/">
+              <AdminRouter />
+            </Route>
+            <Route path="/:nested*">
+              <AdminRouter />
+            </Route>
+          </Switch>
+        ) : (
+          <Switch>
+            {/* Usuário desautenticado só tem permissão de ver o Login */}
+            <Route path="/login" component={Login} />
+            
+            {/* Qualquer tentativa de acessar outra rota sem autenticação cai aqui */}
+            <Route>
+              <Redirect to="/login" />
+            </Route>
+          </Switch>
+        )}
+      </Switch>
+    </WouterRouter>
+  );
+}
+
 function App() {
   useEffect(() => {
     document.documentElement.classList.add("dark");
   }, []);
 
-  // Define a base como string vazia caso import.meta.env.BASE_URL venha indefinido
-  const base = (import.meta.env.BASE_URL || "").replace(/\/$/, "");
-
   return (
     <QueryClientProvider client={queryClient}>
       <BarberProvider>
-        <WouterRouter base={base}>
-          <Switch>
-            <Route path="/agendar" component={Dashboard} />
-            <Route path="/landing" component={Dashboard} />
-            <Route>
-              <AdminRouter />
-            </Route>
-          </Switch>
-        </WouterRouter>
+        <AppContent /> {/* 👈 Renderiza o roteador inteligente protegido */}
+        <Toaster position="top-right" />
       </BarberProvider>
-      <Toaster position="top-right" />
     </QueryClientProvider>
   );
 }
