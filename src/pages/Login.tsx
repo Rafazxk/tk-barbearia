@@ -57,7 +57,11 @@ export default function Login() {
 
   const handleGoogleLogin = () => {
     // Redireciona direto para o fluxo de OAuth do seu back-end
-    window.location.href = "http://localhost:3000/api/auth/google";
+    const apiBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+
+    const serverRoot = apiBaseUrl.replace(/\/api$/, '');
+
+    window.location.href = `${serverRoot}/api/auth/google`;
   };
 
   return (

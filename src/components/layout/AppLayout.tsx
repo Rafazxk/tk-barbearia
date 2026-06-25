@@ -1,5 +1,6 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
+import { useBarber } from "@/contexts/BarberContext"; // 👤 Importando o contexto
 import { 
   Menu, X, LayoutDashboard, Calendar, DollarSign, 
   MessageSquare, Users, Briefcase, ShoppingBag, CalendarOff, 
@@ -12,19 +13,24 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
-  const [location] = useLocation();
+  // ✅ Capturando o setLocation para fazer o redirecionamento de rota
+  const [location, setLocation] = useLocation();
   const [isOpen, setIsOpen] = useState(false);
+  
+  // Usando o contexto para pegar os dados reais do usuário logado (se houver) e a função de logout
+  const { user, logout } = useBarber() as any; 
   
   // Estado para controlar a abertura do submenu de configurações
   const [configAberto, setConfigAberto] = useState(location.startsWith("/configuracoes"));
 
+  // Exibição do usuário com fallback seguro
   const usuarioLogado = {
-    nome: "Tharsys",
-    perfil: "Administrador",
-    iniciais: "TS"
+    nome: user?.nome || "Tharsys",
+    perfil: user?.role === "admin" ? "Administrador" : "Barbeiro",
+    iniciais: user?.nome ? user.nome.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) : "TS"
   };
 
-  // Itens normais (Configurações saiu daqui para virar o dropdown no final)
+  // Itens normais
   const menuItems = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
     { name: "Agendamentos", href: "/agendamentos", icon: Calendar },
@@ -46,8 +52,22 @@ export function AppLayout({ children }: AppLayoutProps) {
     { name: "Políticas & LGPD", href: "/configuracoes/politicas", icon: FileText },
   ];
 
+  // ✅ Função Sair da conta atualizada e segura
   const handleLogout = () => {
     console.log("Executando logout do sistema...");
+
+    // 🔒 1. Limpa os tokens/sessões salvos localmente
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+
+    logout();
+
+    localStorage.removeItem("@TKBarber:token");
+    
+    setIsOpen(false);
+    setTimeout(() => {
+      setLocation("/login");
+    }, 50);
   };
 
   const NavigationLinks = () => (
@@ -57,23 +77,23 @@ export function AppLayout({ children }: AppLayoutProps) {
         const isActive = location === item.href;
 
         return (
-          <Link key={item.href} href={item.href}>
-            <a 
-              onClick={() => setIsOpen(false)}
-              className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer ${
-                isActive 
-                  ? "bg-primary text-primary-foreground font-semibold shadow-md shadow-primary/10" 
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-              }`}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              <span className="truncate">{item.name}</span>
-            </a>
+          <Link 
+            key={item.href} 
+            href={item.href}
+            onClick={() => setIsOpen(false)}
+            className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer ${
+              isActive 
+                ? "bg-primary text-primary-foreground font-semibold shadow-md shadow-primary/10" 
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+            }`}
+          >
+            <Icon className="h-4 w-4 shrink-0" />
+            <span className="truncate">{item.name}</span>
           </Link>
         );
       })}
 
-      {/* RECURSO DO DROPDOWN RECTÁTIL DE CONFIGURAÇÕES */}
+      {/* RECURSO DO DROPDOWN RETRÁTIL DE CONFIGURAÇÕES */}
       <button
         onClick={() => setConfigAberto(!configAberto)}
         className={`w-full flex items-center justify-between px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer ${
@@ -89,7 +109,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         {configAberto ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
       </button>
 
-      {/* RENDERIZA OS SUBMETENS SE ESTIVER ABERTO */}
+      {/* RENDERIZA OS SUBITENS SE ESTIVER ABERTO */}
       {configAberto && (
         <div className="pl-4 mt-1 space-y-1 border-l border-border/60 ml-6 animate-in slide-in-from-top-2 duration-150">
           {subLinksConfig.map((subItem) => {
@@ -97,18 +117,18 @@ export function AppLayout({ children }: AppLayoutProps) {
             const isSubActive = location === subItem.href;
 
             return (
-              <Link key={subItem.href} href={subItem.href}>
-                <a
-                  onClick={() => setIsOpen(false)}
-                  className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-all cursor-pointer ${
-                    isSubActive
-                      ? "text-primary font-bold bg-primary/5"
-                      : "text-muted-foreground hover:text-foreground hover:bg-secondary/40"
-                  }`}
-                >
-                  <SubIcon className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{subItem.name}</span>
-                </a>
+              <Link 
+                key={subItem.href} 
+                href={subItem.href}
+                onClick={() => setIsOpen(false)}
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                  isSubActive
+                    ? "text-primary font-bold bg-primary/5"
+                    : "text-muted-foreground hover:text-foreground hover:bg-secondary/40"
+                }`}
+              >
+                <SubIcon className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{subItem.name}</span>
               </Link>
             );
           })}

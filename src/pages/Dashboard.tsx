@@ -84,14 +84,19 @@ export default function Dashboard() {
     enabled: !!activeBarberId,
   });
 
-  const { data: appointments, isLoading: apptLoading } = useQuery<Appointment[]>({
-    queryKey: ["appointments", dateStr, activeBarberId],
-    queryFn: async () => {
-      const response = await api.get(`/appointments?date=${dateStr}&barberId=${activeBarberId}`);
-      return response.data;
-    },
-    enabled: !!activeBarberId,
-  });
+const { data: appointments, isLoading: apptLoading } = useQuery<Appointment[]>({
+  queryKey: ["appointments", dateStr, activeBarberId],
+  queryFn: async () => {
+    const response = await api.get("/appointments", {
+      params: { 
+        date: dateStr, 
+        barberId: activeBarberId 
+      } // ✅ Passagem limpa via params
+    });
+    return response.data;
+  },
+  enabled: !!activeBarberId,
+});
 
   const deleteAppt = useMutation({
     mutationFn: async ({ id }: { id: number }) => {

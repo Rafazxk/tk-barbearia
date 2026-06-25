@@ -1,6 +1,8 @@
 import axios from "axios";
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+
 export const api = axios.create({
-  baseURL: "http://localhost:3000/api", // URL do seu back-end Express
-  withCredentials: true, // 🚨 CRÍTICO: Permite o envio e recebimento de cookies/tokens entre front e back
+  baseURL: API_URL, 
+  withCredentials: true, 
 });
