@@ -40,7 +40,7 @@ export function BarberProvider({ children }: { children: React.ReactNode }) {
     console.log("Contexto -> Executando loginState com os dados:", userData);
     
     // 1. Salva no localStorage primeiro
-    localStorage.setItem("@TKBarber:user", JSON.stringify(userData));
+  localStorage.setItem("@TKBarber:user", JSON.stringify(userData));;
     
     // 2. Atualiza o estado do React imediatamente para forçar o re-render
     setUser(userData);

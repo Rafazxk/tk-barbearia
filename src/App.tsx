@@ -15,6 +15,8 @@ import ProductsList from "@/pages/ProductsList";
 import ScheduleBlocks from "@/pages/ScheduleBlocks";
 import SettingsLayout from "@/pages/SettingsLayout";
 import Login from "./pages/Login";
+import WhatsappConfig from "./pages/WhatsappConfig";
+import ClientBooking from "./pages/ClientBooking";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -29,7 +31,7 @@ function AdminRouter() {
         {/* O Dashboard responde na raiz do Admin */}
         <Route path="/" component={Dashboard} />
         
-        {/* Rotas administrativas */}
+        {/* Rotas administrativas simples */}
         <Route path="/agendamentos" component={Appointments} />
         <Route path="/financeiro" component={Financial} />
         <Route path="/clientes" component={ClientsList} />
@@ -37,36 +39,45 @@ function AdminRouter() {
         <Route path="/bloqueios" component={ScheduleBlocks} />
         <Route path="/servicos" component={ServicesList} />
         <Route path="/contas" component={BarberAccounts} />
+        <Route path="/whatsapp" component={WhatsappConfig} />
+  
 
+        {/* ⚙️ SUB-ROTAS DE CONFIGURAÇÃO (Corrigidas para o wouter ler caminhos profundos) */}
         <Route path="/configuracoes/barbearia">
-          {() => <SettingsLayout abaInicial="barbearia" />}
+          <SettingsLayout abaInicial="barbearia" />
         </Route>
 
         <Route path="/configuracoes/perfil">
-          {() => <SettingsLayout abaInicial="perfil" />}
+          <SettingsLayout abaInicial="perfil" />
         </Route>
 
         <Route path="/configuracoes/preferencias">
-          {() => <SettingsLayout abaInicial="preferencias" />}
+          <SettingsLayout abaInicial="preferencias" />
         </Route>
 
         <Route path="/configuracoes/seguranca">
-          {() => <SettingsLayout abaInicial="seguranca" />}
+          <SettingsLayout abaInicial="seguranca" />
         </Route>
 
         <Route path="/configuracoes/politicas">
-          {() => <SettingsLayout abaInicial="politicas" />}
+          <SettingsLayout abaInicial="politicas" />
+        </Route>
+        
+        {/* Rota de fallback caso digitem algo errado no admin */}
+        <Route>
+          <div className="p-8 text-center text-muted-foreground">Página não encontrada dentro do painel.</div>
         </Route>
       </Switch>
     </AppLayout>
   );
 }
 
-// 📦 Sub-componente criado para podermos usar o hook useBarber() dentro do escopo do BarberProvider
 function AppContent() {
   const { isAuthenticated, loading, user } = useBarber(); 
   const base = (import.meta.env.BASE_URL || "").replace(/\/$/, "");
-console.log("Roteador ->", { isAuthenticated, loading, user });
+
+  console.log("Roteador ->", { isAuthenticated, loading, user });
+
   if (loading) {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-zinc-500 font-medium">
@@ -78,32 +89,25 @@ console.log("Roteador ->", { isAuthenticated, loading, user });
   return (
     <WouterRouter base={base}>
       <Switch>
-        {/* Rotas abertas independentes de login */}
-        <Route path="/agendar" component={Dashboard} />
+        {/* 👇 CORRIGIDO: Agora aponta para a tela do cliente correta */}
+        <Route path="/agendar" component={ClientBooking} />
         <Route path="/landing" component={Dashboard} />
 
         {/* Fluxo Condicional Limpo */}
         {isAuthenticated ? (
           <Switch>
-            {/* Se tentar forçar a barra indo no /login já logado, joga para a raiz */}
             <Route path="/login">
               <Redirect to="/" />
             </Route>
             
-            {/* Captura a raiz e todas as sub-rotas administrativas (/agendamentos, /clientes, etc.) */}
-            <Route path="/">
-              <AdminRouter />
-            </Route>
-            <Route path="/:nested*">
+            {/* Usar o operador coringa do wouter (path="/*") */}
+            <Route path="/*">
               <AdminRouter />
             </Route>
           </Switch>
         ) : (
           <Switch>
-            {/* Usuário desautenticado só tem permissão de ver o Login */}
             <Route path="/login" component={Login} />
-            
-            {/* Qualquer tentativa de acessar outra rota sem autenticação cai aqui */}
             <Route>
               <Redirect to="/login" />
             </Route>
@@ -122,7 +126,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BarberProvider>
-        <AppContent /> {/* 👈 Renderiza o roteador inteligente protegido */}
+        <AppContent />
         <Toaster position="top-right" />
       </BarberProvider>
     </QueryClientProvider>

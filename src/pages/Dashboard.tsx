@@ -1,14 +1,14 @@
-import React, { useState } from "react"; // 👈 Adicionado o import do React
+import React, { useState } from "react";
 import { useBarber } from "@/contexts/BarberContext"; 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { format, parseISO, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Calendar as CalendarIcon, Clock, DollarSign, Scissors, TrendingUp, Trash2, Edit, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Popover, PopoverContent, PopoverTrigger, Calendar } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger, Calendar } from "@/components/ui/popover"; 
 import { toast } from "sonner";
 import { AppointmentDialog } from "@/components/AppointmentDialog";
 import { api } from "@/lib/api"; 
@@ -18,10 +18,10 @@ export interface Appointment {
   clienteNome: string;
   clienteTelefone: string;
   dataHora: string;
-  totalPreco?: string;
-  totalDuracao?: number;
+  totalPreco: number; 
+  totalDuracao: number; 
   barbeiro?: { id: number; nome: string };
-  servicos?: Array<{ id: number; nome: string }>;
+  servicos?: Array<{ id: number; nome: string; preco: string | number; duracaoMinutos: number }>;
 }
 
 export interface DashboardSummary {
@@ -32,13 +32,30 @@ export interface DashboardSummary {
   topService: string;
 }
 
+// 🛡️ Helper seguro para formatar horas sem estourar o React
+function formatSafeTime(dateString: string): string {
+  if (!dateString) return "--:--";
+  const date = parseISO(dateString);
+  if (!isValid(date)) {
+    const fallbackDate = new Date(dateString);
+    return isValid(fallbackDate) ? format(fallbackDate, "HH:mm") : "--:--";
+  }
+  return format(date, "HH:mm");
+}
+
 function buildWhatsAppLink(appt: Appointment): string {
   const phone = appt.clienteTelefone.replace(/\D/g, "");
   const fullPhone = phone.startsWith("55") ? phone : `55${phone}`;
-  const dateStr = format(new Date(appt.dataHora), "dd/MM/yyyy 'às' HH:mm");
+  
+  let formattedDate = "Horário agendado";
+  if (appt.dataHora) {
+    const d = parseISO(appt.dataHora);
+    if (isValid(d)) formattedDate = format(d, "dd/MM/yyyy 'às' HH:mm");
+  }
+
   const servNames = appt.servicos?.map((s) => s.nome).join(", ") ?? "Serviço";
   const msg = encodeURIComponent(
-    `Olá ${appt.clienteNome}! ✂️\n\nLembrando do seu agendamento na *TK Barbearia*:\n\n📅 Data: ${dateStr}\n💈 Barbeiro: ${appt.barbeiro?.nome ?? ""}\n✨ Serviços: ${servNames}\n💰 Total: R$ ${appt.totalPreco ?? "—"}\n\nAté logo!`
+    `Olá ${appt.clienteNome}! ✂️\n\nLembrando do seu agendamento na *TK Barbearia*:\n\n📅 Data: ${formattedDate}\n💈 Barbeiro: ${appt.barbeiro?.nome ?? ""}\n✨ Serviços: ${servNames}\n💰 Total: R$ ${appt.totalPreco ?? "—"}\n\nAté logo!`
   );
   return `https://wa.me/${fullPhone}?text=${msg}`;
 }
@@ -75,6 +92,7 @@ export default function Dashboard() {
 
   const dateStr = format(date, "yyyy-MM-dd");
 
+  // --- QUERIES ---
   const { data: summary, isLoading: summaryLoading } = useQuery<DashboardSummary>({
     queryKey: ["dashboardSummary", activeBarberId],
     queryFn: async () => {
@@ -84,20 +102,19 @@ export default function Dashboard() {
     enabled: !!activeBarberId,
   });
 
-const { data: appointments, isLoading: apptLoading } = useQuery<Appointment[]>({
-  queryKey: ["appointments", dateStr, activeBarberId],
-  queryFn: async () => {
-    const response = await api.get("/appointments", {
-      params: { 
-        date: dateStr, 
-        barberId: activeBarberId 
-      } // ✅ Passagem limpa via params
-    });
-    return response.data;
-  },
-  enabled: !!activeBarberId,
-});
+  const { data: appointments = [], isLoading: apptLoading } = useQuery<Appointment[]>({
+    queryKey: ["appointments", dateStr, activeBarberId],
+    queryFn: async () => {
+      const response = await api.get("/appointments", {
+        params: { date: dateStr, barberId: activeBarberId }
+      });
+      return response.data;
+    },
+    enabled: !!activeBarberId,
+  });
 
+  // --- MUTATIONS ---
+  // 🔄 CORRIGIDO: Invalida chaves exatas contendo os filtros ativos para forçar o refetch imediato
   const deleteAppt = useMutation({
     mutationFn: async ({ id }: { id: number }) => {
       await api.delete(`/appointments/${id}`);
@@ -109,6 +126,47 @@ const { data: appointments, isLoading: apptLoading } = useQuery<Appointment[]>({
     },
     onError: () => toast.error("Erro ao excluir agendamento"),
   });
+
+  const createAppt = useMutation({
+    mutationFn: async (newAppt: { clienteNome: string; clienteTelefone: string; dataHora: string; barbeiroId: number; servicoIds: number[]; }) => {
+      const response = await api.post("/appointments", newAppt);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+      toast.success("Agendamento realizado com sucesso!");
+      setDialogOpen(false);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || "Erro ao criar agendamento");
+    },
+  });
+
+  const updateAppt = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      const response = await api.put(`/appointments/${id}`, data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboardSummary"] });
+      toast.success("Agendamento atualizado com sucesso!");
+      setDialogOpen(false);
+      setEditingAppt(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || "Erro ao atualizar agendamento");
+    }
+  });
+
+  const handleFormSubmit = async (payload: any) => {
+    if (editingAppt) {
+      await updateAppt.mutateAsync({ id: editingAppt.id, data: payload });
+    } else {
+      await createAppt.mutateAsync(payload);
+    }
+  };
 
   const isToday = dateStr === format(new Date(), "yyyy-MM-dd");
 
@@ -130,7 +188,6 @@ const { data: appointments, isLoading: apptLoading } = useQuery<Appointment[]>({
         <StatCard title="Agendamentos Hoje" value={String(summary?.appointmentsToday ?? 0)} sub={`${summary?.pendingCount ?? 0} pendentes`} icon={Scissors} loading={summaryLoading} />
         <StatCard title="Faturamento Hoje" value={`R$ ${summary?.revenueToday ?? "0.00"}`} icon={DollarSign} loading={summaryLoading} />
         <StatCard title="Semana Atual" value={String(summary?.appointmentsThisWeek ?? 0)} sub="agendamentos" icon={TrendingUp} loading={summaryLoading} />
-        <StatCard title="Serv. mais Pedido" value={summary?.topService ?? "—"} icon={Clock} loading={summaryLoading} />
       </div>
 
       <div>
@@ -143,8 +200,16 @@ const { data: appointments, isLoading: apptLoading } = useQuery<Appointment[]>({
                 {format(date, "dd/MM/yyyy")}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end">
-              <Calendar mode="single" selected={date} onSelect={(d) => { if (d) { setDate(d); setCalOpen(false); } }} locale={ptBR} />
+            <PopoverContent className="w-auto p-0 border-zinc-800" align="end">
+              <Calendar 
+                selected={date} 
+                onSelect={(d) => { 
+                  if (d) { 
+                    setDate(d); 
+                    setCalOpen(false); 
+                  } 
+                }} 
+              />
             </PopoverContent>
           </Popover>
         </div>
@@ -155,7 +220,7 @@ const { data: appointments, isLoading: apptLoading } = useQuery<Appointment[]>({
               <Skeleton key={i} className="h-16 w-full" />
             ))}
           </div>
-        ) : !appointments?.length ? (
+        ) : !appointments || appointments.length === 0 ? (
           <Card>
             <CardContent className="py-12 flex flex-col items-center text-center">
               <CalendarIcon className="h-10 w-10 text-zinc-600 mb-3" />
@@ -172,12 +237,13 @@ const { data: appointments, isLoading: apptLoading } = useQuery<Appointment[]>({
                 <CardContent className="p-4 flex items-start justify-between gap-3">
                   <div className="flex items-start gap-3 min-w-0">
                     <div className="h-10 w-10 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0 text-amber-500 font-bold text-sm">
-                      {appt.clienteNome.charAt(0)}
+                      {appt.clienteNome?.charAt(0) ?? "?"}
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-medium text-sm text-zinc-200">{appt.clienteNome}</p>
-                        <span className="text-xs text-zinc-400">{format(new Date(appt.dataHora), "HH:mm")}</span>
+                        {/* 🛡️ FORMATO SEGURO APLICADO AQUI: */}
+                        <span className="text-xs text-zinc-400">{formatSafeTime(appt.dataHora)}</span>
                         {appt.barbeiro && <span className="text-xs text-zinc-500 hidden sm:inline">· {appt.barbeiro.nome}</span>}
                       </div>
                       {appt.servicos && appt.servicos.length > 0 && (
@@ -227,8 +293,14 @@ const { data: appointments, isLoading: apptLoading } = useQuery<Appointment[]>({
 
       <AppointmentDialog
         open={dialogOpen}
-        onOpenChange={(open) => { setDialogOpen(open); if (!open) setEditingAppt(null); }}
+        onOpenChange={(open) => { 
+          setDialogOpen(open); 
+          if (!open) setEditingAppt(null); 
+        }}
         appointment={editingAppt}
+        onSubmit={handleFormSubmit}
+        isSubmitting={createAppt.isPending || updateAppt.isPending}
+        selectedDate={date} 
       />
     </div>
   );

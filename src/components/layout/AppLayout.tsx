@@ -1,6 +1,8 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { useBarber } from "@/contexts/BarberContext"; // 👤 Importando o contexto
+import { io } from "socket.io-client";
+import { toast } from "sonner";
+import { useBarber } from "@/contexts/BarberContext"; 
 import { 
   Menu, X, LayoutDashboard, Calendar, DollarSign, 
   MessageSquare, Users, Briefcase, ShoppingBag, CalendarOff, 
@@ -13,26 +15,63 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
-  // ✅ Capturando o setLocation para fazer o redirecionamento de rota
   const [location, setLocation] = useLocation();
   const [isOpen, setIsOpen] = useState(false);
-  
-  // Usando o contexto para pegar os dados reais do usuário logado (se houver) e a função de logout
   const { user, logout } = useBarber() as any; 
-  
-  // Estado para controlar a abertura do submenu de configurações
   const [configAberto, setConfigAberto] = useState(location.startsWith("/configuracoes"));
 
-  // Exibição do usuário com fallback seguro
+  // ⚡ INTEGRAÇÃO DO WEBCOCKET (SOCKET.IO) EM TEMPO REAL
+  useEffect(() => {
+    // Só conecta se o barbeiro estiver logado e possuir um ID válido
+    if (!user?.id) return;
+
+    // Conecta apontando para a URL do seu backend (ajuste se for usar a url da Railway)
+    const socketUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
+    const socket = io(socketUrl, {
+      withCredentials: true,
+    });
+
+    // 1. Envia o ID para se registrar na sala exclusiva deste barbeiro
+    socket.emit("register-barber", user.id);
+
+    // 2. Ouve o evento de novos agendamentos criados
+    socket.on("new-appointment", (data: any) => {
+      // Formata a lista de serviços para exibir uma string bonita
+      const servicosTexto = data.servicos?.length ? data.servicos.join(", ") : "Não informado";
+      
+      // Converte a data para um formato amigável brasileiro
+      const dataFormatada = new Date(data.dataHora).toLocaleDateString("pt-BR");
+      const horaFormatada = new Date(data.dataHora).toLocaleTimeString("pt-BR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
+      // 🎉 Dispara o toast sofisticado na tela do barbeiro específico
+      toast.success("Novo Agendamento Recebido! ✂️", {
+        description: `${data.clienteNome} agendou para ${dataFormatada} às ${horaFormatada}h.\nServiço: ${servicosTexto}`,
+        duration: 8000, // Mantém visível por 8 segundos para ele ler bem
+        action: {
+          label: "Ver Agenda",
+          onClick: () => setLocation("/agendamentos") // Redireciona ele direto para a agenda
+        }
+      });
+    });
+
+    // ❌ Limpa o evento e desconecta o canal se o usuário sair ou a tela desmontar
+    return () => {
+      socket.off("new-appointment");
+      socket.disconnect();
+    };
+  }, [user?.id, setLocation]);
+
   const usuarioLogado = {
     nome: user?.nome || "Tharsys",
     perfil: user?.role === "admin" ? "Administrador" : "Barbeiro",
     iniciais: user?.nome ? user.nome.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) : "TS"
   };
 
-  // Itens normais
   const menuItems = [
-    { name: "Dashboard", href: "/", icon: LayoutDashboard },
+    { name: "Painel", href: "/", icon: LayoutDashboard },
     { name: "Agendamentos", href: "/agendamentos", icon: Calendar },
     { name: "Financeiro", href: "/financeiro", icon: DollarSign },
     { name: "WhatsApp", href: "/whatsapp", icon: MessageSquare },
@@ -43,7 +82,6 @@ export function AppLayout({ children }: AppLayoutProps) {
     { name: "Bloquear Horários", href: "/bloqueios", icon: CalendarOff },
   ];
 
-  // Subitens de configurações
   const subLinksConfig = [
     { name: "Barbearia", href: "/configuracoes/barbearia", icon: Store },
     { name: "Meu Perfil", href: "/configuracoes/perfil", icon: User },
@@ -52,16 +90,11 @@ export function AppLayout({ children }: AppLayoutProps) {
     { name: "Políticas & LGPD", href: "/configuracoes/politicas", icon: FileText },
   ];
 
-  // ✅ Função Sair da conta atualizada e segura
   const handleLogout = () => {
     console.log("Executando logout do sistema...");
-
-    // 🔒 1. Limpa os tokens/sessões salvos localmente
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-
     logout();
-
     localStorage.removeItem("@TKBarber:token");
     
     setIsOpen(false);
@@ -93,7 +126,6 @@ export function AppLayout({ children }: AppLayoutProps) {
         );
       })}
 
-      {/* RECURSO DO DROPDOWN RETRÁTIL DE CONFIGURAÇÕES */}
       <button
         onClick={() => setConfigAberto(!configAberto)}
         className={`w-full flex items-center justify-between px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer ${
@@ -109,7 +141,6 @@ export function AppLayout({ children }: AppLayoutProps) {
         {configAberto ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
       </button>
 
-      {/* RENDERIZA OS SUBITENS SE ESTIVER ABERTO */}
       {configAberto && (
         <div className="pl-4 mt-1 space-y-1 border-l border-border/60 ml-6 animate-in slide-in-from-top-2 duration-150">
           {subLinksConfig.map((subItem) => {
@@ -168,7 +199,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           <div className="h-7 w-7 rounded bg-primary flex items-center justify-center text-primary-foreground font-bold text-xs">
             BB
           </div>
-          <span className="font-bold text-sm tracking-wider text-primary">BARBERBOOK</span>
+          <span className="font-bold text-sm tracking-wider text-primary">TK Barbearia</span>
         </div>
         <button 
           onClick={() => setIsOpen(!isOpen)} 
@@ -187,7 +218,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             <div className="h-7 w-7 rounded bg-primary flex items-center justify-center text-primary-foreground font-bold text-xs">
               BB
             </div>
-            <span className="font-bold text-base tracking-wider text-primary">BARBERBOOK</span>
+            <span className="font-bold text-base tracking-wider text-primary">TK Barbearia</span>
           </div>
           <NavigationLinks />
           <UserFooter />
@@ -198,9 +229,9 @@ export function AppLayout({ children }: AppLayoutProps) {
       <aside className="hidden md:flex w-64 bg-card border-r border-border flex-col shrink-0 sticky top-0 h-screen">
         <div className="p-5 flex items-center gap-2 border-b border-border shrink-0">
           <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold text-sm">
-            BB
+            TK
           </div>
-          <span className="font-bold text-base tracking-wider text-primary">BARBERBOOK</span>
+          <span className="font-bold text-base tracking-wider text-primary">TK BARBEARIA</span>
         </div>
         <NavigationLinks />
         <UserFooter />

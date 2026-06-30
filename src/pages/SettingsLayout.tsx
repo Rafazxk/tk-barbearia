@@ -1,20 +1,105 @@
-import { Store, User, Sliders, ShieldCheck, FileText, Save, KeyRound, Bell } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
+import { useBarber } from "@/contexts/BarberContext";
+import { Save, CalendarDays, CheckCircle2, Edit2, X, Bell } from "lucide-react";
 
 interface SettingsLayoutProps {
   abaInicial: "barbearia" | "perfil" | "preferencias" | "seguranca" | "politicas";
 }
 
+interface DiaConfig {
+  id?: number; // Mudado para opcional, pois na primeira vez a memória não tem ID do banco
+  diaSemana: number;
+  diaNome: string;
+  trabalha: boolean;
+  horaAbertura: string;
+  horaFechamento: string;
+  intervaloMinutos: number;
+}
+
 export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
-  
+  const { user } = useBarber();
+  const queryClient = useQueryClient();
+  const [configs, setConfigs] = useState<DiaConfig[]>([]);
+  const [mostrarSucesso, setMostrarSucesso] = useState(false);
+  const [isEditandoGrade, setIsEditandoGrade] = useState(false);
+
+  // Define o alvo: null para configuração global/admin, ou o ID do barbeiro logado
+  const barbeiroIdDestino = user?.role === "admin" ? null : user?.id;
+
+  // 📥 Buscar configurações sincronizadas por Barbeiro
+  const { data: serverData, isLoading: carregandoHorarios } = useQuery<DiaConfig[]>({
+    queryKey: ["business-hours", barbeiroIdDestino],
+    queryFn: async () => {
+      const res = await api.get("/business-hours", {
+        params: { barbeiroId: barbeiroIdDestino }
+      });
+      return res.data;
+    },
+    enabled: abaInicial === "barbearia"
+  });
+
+  // Sincroniza dados do servidor ou gera a grade padrão inicial caso esteja vazio no banco
+  useEffect(() => {
+    if (serverData && serverData.length > 0) {
+      setConfigs(serverData);
+    } else if (serverData && serverData.length === 0) {
+      // 💡 Se o banco está vazio, gera a estrutura inicial em memória SEM id.
+      // O seu backend receberá isso e fará o INSERT corretamente.
+      const diasIniciais: DiaConfig[] = [
+        { diaSemana: 1, diaNome: "Segunda-feira", trabalha: true, horaAbertura: "09:00", horaFechamento: "18:00", intervaloMinutos: 30 },
+        { diaSemana: 2, diaNome: "Terça-feira", trabalha: true, horaAbertura: "09:00", horaFechamento: "18:00", intervaloMinutos: 30 },
+        { diaSemana: 3, diaNome: "Quarta-feira", trabalha: true, horaAbertura: "09:00", horaFechamento: "18:00", intervaloMinutos: 30 },
+        { diaSemana: 4, diaNome: "Quinta-feira", trabalha: true, horaAbertura: "09:00", horaFechamento: "18:00", intervaloMinutos: 30 },
+        { diaSemana: 5, diaNome: "Sexta-feira", trabalha: true, horaAbertura: "09:00", horaFechamento: "18:00", intervaloMinutos: 30 },
+        { diaSemana: 6, diaNome: "Sábado", trabalha: true, horaAbertura: "08:00", horaFechamento: "16:00", intervaloMinutos: 30 },
+        { diaSemana: 0, diaNome: "Domingo", trabalha: false, horaAbertura: "09:00", horaFechamento: "12:00", intervaloMinutos: 30 },
+      ];
+      setConfigs(diasIniciais);
+    }
+  }, [serverData]);
+
+  // 📤 Mutation para salvar os horários
+  const updateHoursMutation = useMutation({
+    mutationFn: async (dadosSemanais: DiaConfig[]) => {
+      return api.put("/business-hours", {
+        configs: dadosSemanais,
+        barbeiroId: barbeiroIdDestino
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["business-hours"] });
+      setMostrarSucesso(true);
+      setIsEditandoGrade(false);
+      setTimeout(() => setMostrarSucesso(false), 3000);
+    }
+  });
+
+  const handleHorarioChange = (index: number, campo: keyof DiaConfig, valor: any) => {
+    const novosDados = [...configs];
+    novosDados[index] = { ...novosDados[index], [campo]: valor };
+    setConfigs(novosDados);
+  };
+
   const handleSalvarConfig = (e: React.FormEvent) => {
     e.preventDefault();
-    alert("Configurações salvas com sucesso!");
+    if (abaInicial === "barbearia") {
+      updateHoursMutation.mutate(configs);
+    } else {
+      alert("Configurações salvas com sucesso!");
+    }
+  };
+
+  // Garante o corte dos segundos (HH:MM:SS -> HH:MM) para o input do HTML funcionar
+  const formatarHoraInput = (horaStr: string | undefined | null, padrao: string = "09:00") => {
+    if (!horaStr) return padrao;
+    return horaStr.slice(0, 5);
   };
 
   return (
     <div className="space-y-6 max-w-4xl">
-      
-      {/* CABEÇALHO DINÂMICO */}
+      {/* CABEÇALHO */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground capitalize">
           Configurações de {abaInicial === "politicas" ? "Políticas" : abaInicial}
@@ -22,101 +107,235 @@ export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
         <p className="text-sm text-muted-foreground">Gerencie os parâmetros específicos deste módulo do sistema.</p>
       </div>
 
-      {/* CONTEÚDO DA CONFIGURAÇÃO */}
+      {mostrarSucesso && (
+        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-3 rounded-lg text-sm flex items-center gap-2 animate-in fade-in duration-200">
+          <CheckCircle2 className="h-4 w-4" /> Configurações salvas no banco de dados!
+        </div>
+      )}
+
+      {/* FORMULÁRIO */}
       <div className="bg-card border border-border rounded-xl p-6 shadow-sm">
         <form onSubmit={handleSalvarConfig} className="space-y-6">
           
-          {/* 🏢 ABA: BARBEARIA */}
+          {/* 🏢 BARBEARIA */}
           {abaInicial === "barbearia" && (
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-base font-bold text-foreground">Dados da Barbearia</h3>
-                <p className="text-xs text-muted-foreground">Informações públicas que aparecerão na página de agendamento do cliente.</p>
+            <div className="space-y-6">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-base font-bold text-foreground">Dados da Barbearia</h3>
+                  <p className="text-xs text-muted-foreground">Informações públicas da página de agendamento.</p>
+                </div>
+                <hr className="border-border/60" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-foreground">Nome da Barbearia</label>
+                    <input type="text" defaultValue="TK Barbearia" className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-foreground">Telefone Comercial</label>
+                    <input type="text" defaultValue="(81) 99999-8888" className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary" />
+                  </div>
+                </div>
               </div>
-              <hr className="border-border/60" />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-foreground">Nome da Barbearia</label>
-                  <input type="text" defaultValue="TK Barbearia" className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary" />
+
+              {/* HORÁRIOS DE FUNCIONAMENTO */}
+              <div className="space-y-4 pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                      <CalendarDays className="h-4 w-4 text-primary" /> Horários de Funcionamento
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      {barbeiroIdDestino ? "Defina a sua grade pessoal de trabalho." : "Grade padrão de expediente da barbearia."}
+                    </p>
+                  </div>
+                  
+                  {/* Botão de Alternância de Edição */}
+                  {!carregandoHorarios && configs.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Se cancelar, restaura o que estava salvo originalmente (ou deixa a padrão se o banco for vazio)
+                        if (isEditandoGrade && serverData) {
+                          if (serverData.length > 0) setConfigs(serverData);
+                        }
+                        setIsEditandoGrade(!isEditandoGrade);
+                      }}
+                      className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-all cursor-pointer select-none ${
+                        isEditandoGrade
+                          ? "bg-destructive/10 border-destructive/20 text-destructive hover:bg-destructive/20"
+                          : "bg-zinc-900 border-border text-foreground hover:bg-zinc-800"
+                      }`}
+                    >
+                      {isEditandoGrade ? (
+                        <><X className="h-3.5 w-3.5" /> Cancelar Edição</>
+                      ) : (
+                        <><Edit2 className="h-3.5 w-3.5 text-primary" /> Editar Grade</>
+                      )}
+                    </button>
+                  )}
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-foreground">Telefone Comercial</label>
-                  <input type="text" defaultValue="(81) 99999-8888" className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary" />
-                </div>
+                <hr className="border-border/60" />
+
+                {carregandoHorarios ? (
+                  <div className="p-4 text-center text-xs text-muted-foreground animate-pulse">Carregando horários...</div>
+                ) : (
+                  <div className="border border-border/80 rounded-xl overflow-hidden divide-y divide-border bg-background/20 shadow-inner">
+                    {configs.map((config, index) => (
+                      <div key={config.diaSemana} className={`p-3.5 grid grid-cols-1 sm:grid-cols-4 gap-3 items-center transition-all ${!config.trabalha ? "bg-zinc-950/20 opacity-40" : ""}`}>
+                        
+                        {/* Nome do dia + Checkbox */}
+                        <div className="flex items-center gap-2.5">
+                          <input 
+                            type="checkbox" 
+                            disabled={!isEditandoGrade}
+                            checked={config.trabalha} 
+                            onChange={(e) => handleHorarioChange(index, "trabalha", e.target.checked)}
+                            className="h-4 w-4 rounded border-border bg-background text-primary cursor-pointer disabled:cursor-not-allowed"
+                          />
+                          <span className="font-semibold text-sm text-foreground">{config.diaNome}</span>
+                        </div>
+
+                        {/* Abertura */}
+                        <div className="flex flex-col">
+                          {isEditandoGrade ? (
+                            <div className="space-y-1">
+                              <label className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Abertura</label>
+                              <input 
+                                type="time" 
+                                disabled={!config.trabalha}
+                                value={formatarHoraInput(config.horaAbertura, "09:00")} 
+                                onChange={(e) => handleHorarioChange(index, "horaAbertura", e.target.value)}
+                                className="bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground w-full focus:outline-none focus:border-primary disabled:opacity-40"
+                              />
+                            </div>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">
+                              Abertura: <strong className="text-foreground">{config.trabalha ? formatarHoraInput(config.horaAbertura) : "--:--"}</strong>
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Fechamento */}
+                        <div className="flex flex-col">
+                          {isEditandoGrade ? (
+                            <div className="space-y-1">
+                              <label className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Fechamento</label>
+                              <input 
+                                type="time" 
+                                disabled={!config.trabalha}
+                                value={formatarHoraInput(config.horaFechamento, "19:00")} 
+                                onChange={(e) => handleHorarioChange(index, "horaFechamento", e.target.value)}
+                                className="bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground w-full focus:outline-none focus:border-primary disabled:opacity-40"
+                              />
+                            </div>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">
+                              Fechamento: <strong className="text-foreground">{config.trabalha ? formatarHoraInput(config.horaFechamento) : "--:--"}</strong>
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Intervalo */}
+                        <div className="flex flex-col">
+                          {isEditandoGrade ? (
+                            <div className="space-y-1">
+                              <label className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Intervalo dos Slots</label>
+                              <select
+                                disabled={!config.trabalha}
+                                value={config.intervaloMinutos}
+                                onChange={(e) => handleHorarioChange(index, "intervaloMinutos", Number(e.target.value))}
+                                className="bg-background border border-border rounded-lg px-2 py-1.5 text-xs text-foreground cursor-pointer disabled:opacity-40"
+                              >
+                                <option value={15}>A cada 15 min</option>
+                                <option value={30}>A cada 30 min</option>
+                                <option value={45}>A cada 45 min</option>
+                                <option value={60}>A cada 1 hora</option>
+                              </select>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground bg-zinc-900 border border-border/40 px-2.5 py-1 rounded-md max-w-max">
+                              Intervalo: <strong className="text-primary">{config.trabalha ? `${config.intervaloMinutos} min` : "Inativo"}</strong>
+                            </span>
+                          )}
+                        </div>
+
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
 
-          {/* 👤 ABA: PERFIL */}
+          {/* 👤 PERFIL */}
           {abaInicial === "perfil" && (
             <div className="space-y-4">
               <div>
                 <h3 className="text-base font-bold text-foreground">Meu Perfil de Acesso</h3>
-                <p className="text-xs text-muted-foreground">Gerencie suas credenciais de login e dados de exibição pessoal.</p>
+                <p className="text-xs text-muted-foreground">Gerencie suas credenciais.</p>
               </div>
               <hr className="border-border/60" />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-foreground">Seu Nome</label>
-                  <input type="text" defaultValue="Rafael Silva" className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary" />
-                </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">Seu Nome</label>
+                <input type="text" defaultValue="Rafael Silva" className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary" />
               </div>
             </div>
           )}
 
-          {/* 🎛️ ABA: PREFERÊNCIAS */}
+          {/* 🎛️ PREFERÊNCIAS */}
           {abaInicial === "preferencias" && (
             <div className="space-y-4">
               <div>
                 <h3 className="text-base font-bold text-foreground">Preferências do Sistema</h3>
-                <p className="text-xs text-muted-foreground">Personalize as notificações e comportamentos do painel administrativo.</p>
+                <p className="text-xs text-muted-foreground">Personalize as notificações.</p>
               </div>
               <hr className="border-border/60" />
               <label className="flex items-start gap-3 p-3 bg-background/50 border border-border rounded-lg cursor-pointer">
                 <input type="checkbox" defaultChecked className="mt-1 accent-primary" />
-                <div>
-                  <span className="text-sm font-semibold text-foreground block flex items-center gap-1.5">
-                    <Bell className="h-3.5 w-3.5 text-primary" /> Enviar lembretes via WhatsApp
-                  </span>
-                </div>
+                <span className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                  <Bell className="h-3.5 w-3.5 text-primary" /> Enviar lembretes via WhatsApp
+                </span>
               </label>
             </div>
           )}
 
-          {/* 🔒 ABA: SEGURANÇA */}
+          {/* 🔒 SEGURANÇA */}
           {abaInicial === "seguranca" && (
             <div className="space-y-4">
               <div>
                 <h3 className="text-base font-bold text-foreground">Segurança da Conta</h3>
-                <p className="text-xs text-muted-foreground">Altere seus parâmetros de segurança e senhas de acesso.</p>
+                <p className="text-xs text-muted-foreground">Altere suas senhas.</p>
               </div>
               <hr className="border-border/60" />
-              <div className="space-y-4 max-w-md">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-foreground block flex items-center gap-1"><KeyRound className="h-3.5 w-3.5" /> Senha Atual</label>
-                  <input type="password" placeholder="••••••••" className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary" />
-                </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">Senha Atual</label>
+                <input type="password" placeholder="••••••••" className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary" />
               </div>
             </div>
           )}
 
-          {/* 📄 ABA: POLÍTICAS (Corrigida aqui 👇) */}
+          {/* 📄 POLÍTICAS */}
           {abaInicial === "politicas" && (
             <div className="space-y-4">
               <div>
                 <h3 className="text-base font-bold text-foreground">Políticas & LGPD</h3>
-                <p className="text-xs text-muted-foreground">Configuração dos termos de consentimento exigidos dos clientes finais.</p>
+                <p className="text-xs text-muted-foreground">Termos de consentimento.</p>
               </div>
               <hr className="border-border/60" />
               <textarea rows={4} defaultValue="O cliente pode desmarcar o agendamento sem custo..." className="w-full bg-background border border-border rounded-lg p-3 text-sm text-foreground focus:outline-none focus:border-primary resize-none" />
             </div>
           )}
 
-          {/* BOTÃO SALVAR GLOBAL */}
+          {/* BOTÃO GLOBAL DE SALVAR */}
           <div className="pt-4 border-t border-border flex justify-end">
-            <button type="submit" className="flex items-center gap-2 bg-primary text-primary-foreground font-semibold px-5 py-2.5 rounded-lg text-sm hover:opacity-90 transition-all cursor-pointer shadow-md">
+            <button 
+              type="submit" 
+              disabled={(abaInicial === "barbearia" && !isEditandoGrade) || updateHoursMutation.isPending}
+              className="flex items-center gap-2 bg-primary text-primary-foreground font-semibold px-5 py-2.5 rounded-lg text-sm hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer shadow-md"
+            >
               <Save className="h-4 w-4" />
-              Salvar Alterações
+              {abaInicial === "barbearia" && updateHoursMutation.isPending ? "Salvando..." : "Salvar Alterações"}
             </button>
           </div>
 
