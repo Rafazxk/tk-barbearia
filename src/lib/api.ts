@@ -6,3 +6,13 @@ export const api = axios.create({
   baseURL: API_URL, 
   withCredentials: true, 
 });
+
+// adicionar um interceptor para lidar com erros de autenticação
+
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('@tk_barber'); 
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});

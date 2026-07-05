@@ -7,7 +7,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import Dashboard from "@/pages/Dashboard";
 import Appointments from "@/pages/Appointments";
 import Financial from "@/pages/Financial";
-import BarberAccounts from "@/pages/BarberAccounts";
+import BarberAccounts from "@/pages/ClientBooking";
 
 import ClientsList from "@/pages/ClientsList";
 import ServicesList from "@/pages/ServicesList";
@@ -16,7 +16,7 @@ import ScheduleBlocks from "@/pages/ScheduleBlocks";
 import SettingsLayout from "@/pages/SettingsLayout";
 import Login from "./pages/Login";
 import WhatsappConfig from "./pages/WhatsappConfig";
-import ClientBooking from "./pages/ClientBooking";
+import ClientBooking from "@/pages/ClientBooking";
 
 const queryClient = new QueryClient({
   defaultOptions: {

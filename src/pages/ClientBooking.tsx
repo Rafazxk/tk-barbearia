@@ -1,32 +1,70 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { format } from "date-fns";
+import { format, isToday, parse } from "date-fns";
 import { Clock, Scissors, ShoppingBag, User, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { IClientAppointment } from "../../../tk-barbearia-backend/src/modules/appointments/repositories/IClienteRepository.js";
+import { Produto } from "./ClientBooking/types.js";
+import logoTk from "../assets/logo.jpeg";
 
-interface Barbeiro { id: number; nome: string; }
+interface Barbeiro { id: number; nome: string; foto?: string | null; }
 interface Servico { id: number; nome: string; preco: number; duracaoMinutos: number; }
 interface Categoria { id: string; nome: string; servicos: Servico[]; }
-interface Produto { id: number; nome: string; preco: number; estoque: number; }
+interface CategoriaProduto { id: number; nome: string; preco: number; estoque: number; }
+
+// interface UpdateAppointmentVariables { 
+//   appointmentId: number;
+//   updatedData: {
+//     clienteNome?: string;
+//     clienteTelefone?: string;
+//     dataHora?: string;
+//     barbeiroId?: number;
+//     servicosIds?: number[]; 
+//   }
+// }
 
 export default function ClientBooking() {
   const [view, setView] = useState<"home" | "booking" | "my-appointments">("home");
   const [phoneLookup, setPhoneLookup] = useState("");
   const [searchedPhone, setSearchedPhone] = useState("");
-  const [step, setStep] = useState(1); 
+  const [step, setStep] = useState(1);
   const [selectedBarber, setSelectedBarber] = useState<Barbeiro | null>(null);
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
   const [selectedServices, setSelectedServices] = useState<Servico[]>([]);
-  const [cartProducts, setCartProducts] = useState<Array<{ produto: Produto; qtd: number }>>([]);
+  const [cartProducts, setCartProducts] = useState<Array<{ produto: CategoriaProduto; qtd: number }>>([]);
   const [clienteNome, setClienteNome] = useState("");
   const [clienteTelefone, setClienteTelefone] = useState("");
-
+  const [editingId, setEditingId] = useState<number | null>(null);
   const hojeStr = format(new Date(), "yyyy-MM-dd");
+  const [agora, setAgora] = useState(new Date());
+
+
+  interface CategoriaProduto {
+    id: string | number;
+    nome: string;
+    produtos: Produto[];
+    preco: number;
+    estoque: number;
+
+  }
+
+  useEffect(() => {
+    const timer = setInterval(() => setAgora(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const gradeHorarios = [
+    "08:00", "08:30", "09:00", "09:30",
+    "10:00", "10:30", "11:00", "11:30",
+    "13:00", "13:30", "14:00", "14:30",
+    "15:00", "15:30", "16:00", "16:30",
+    "17:00", "17:30", "18:00", "18:30", "19:00",
+  ];
 
   // Busca de Barbeiros da API Real
   const { data: barbeiros = [] } = useQuery<Barbeiro[]>({
@@ -42,12 +80,15 @@ export default function ClientBooking() {
     queryKey: ["categories-enriched-client"],
     queryFn: async () => {
       const res = await api.get("/categories/enriched");
+
+      console.log("Categorias e Serviços:", res.data);
+
       return res.data;
     }
   });
 
   // Busca de Produtos da API Real 
-  const { data: produtos = [], isLoading: loadingProdutos } = useQuery<Produto[]>({
+  const { data: produtos = [], isLoading: loadingProdutos } = useQuery<CategoriaProduto[]>({
     queryKey: ["products-list"],
     queryFn: async () => {
       const res = await api.get("/products");
@@ -58,7 +99,7 @@ export default function ClientBooking() {
   const { data: agendamentosOcupados = [] } = useQuery({
     queryKey: ["client-appointments-lookup", selectedDate, selectedBarber?.id],
     queryFn: async () => {
-      const res = await api.get("/appointments", {
+      const res = await api.get("/appointments/available", {
         params: { date: selectedDate, barberId: selectedBarber?.id }
       });
       return res.data;
@@ -66,39 +107,102 @@ export default function ClientBooking() {
     enabled: step === 2 && !!selectedDate && !!selectedBarber,
   });
 
-  const { data: meusAgendamentos = [], isLoading: loadingMeus } = useQuery({
+  const agendamentosDoDia = agendamentosOcupados.filter((appt: any) => {
+    // 1. Proteção: Se não tiver data, ignore esse agendamento
+    if (!appt.dataHora) return false;
+
+    try {
+      // 2. Tenta formatar com segurança
+      const data = format(new Date(appt.dataHora), "yyyy-MM-dd");
+
+      return (
+        data === selectedDate &&
+        appt.barbeiro?.id === selectedBarber?.id
+      );
+    } catch (error) {
+      // 3. Caso o formato da string da data seja maluco, ignore também
+      console.error("Data inválida encontrada:", appt.dataHora);
+      return false;
+    }
+  });
+
+  const availableSlots = useMemo(() => {
+    const agora = new Date();
+    const horaAtual = agora.getHours();
+    const minAtual = agora.getMinutes();
+
+    // Comparação de string segura
+    const hojeFormatado = format(new Date(), "yyyy-MM-dd");
+    const ehHoje = selectedDate === hojeFormatado;
+
+    return gradeHorarios.filter((horario) => {
+      // 1. Ocupação
+      const estaOcupado = agendamentosDoDia.some((appt: any) => {
+        if (!appt.dataHora) return false;
+        return format(new Date(appt.dataHora), "HH:mm") === horario;
+      });
+      if (estaOcupado) return false;
+
+      // 2. Filtro de horários
+      if (ehHoje) {
+        const [h, m] = horario.split(":").map(Number);
+        if (h < horaAtual || (h === horaAtual && m <= minAtual)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [gradeHorarios, agendamentosDoDia, selectedDate, selectedBarber]);
+
+
+  const { data: meusAgendamentos = [], isLoading: loadingMeusAgendamentos } = useQuery<IClientAppointment[]>({
     queryKey: ["my-appointments-list", searchedPhone],
     queryFn: async () => {
       const res = await api.get(`/appointments/client/${searchedPhone}`);
       return res.data;
     },
-    enabled: view === "my-appointments" && !!searchedPhone
+    enabled: searchedPhone.length >= 8,
   });
-
-  const sendBooking = useMutation({
-    mutationFn: async (payload: any) => {
-      return await api.post("/appointments/client-booking", payload); 
+  //DELETE
+  const deleteAppointment = useMutation({
+    mutationFn: async (appointmentId: number) => {
+      return await api.delete(`/appointments/client/${appointmentId}`);
     },
     onSuccess: () => {
-      toast.success("Agendamento e reserva concluídos com sucesso!");
+      toast.success("Agendamento cancelado com sucesso!");
+      // Refetch the appointments after deletion
+      setSearchedPhone(""); // Limpa o campo de busca para forçar o refetch
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || "Erro ao cancelar agendamento.");
+    }
+  });
+
+  const upsertAppointment = useMutation({
+    mutationFn: async ({ id, payload }: { id?: number, payload: any }) => {
+      if (id) {
+        // Se tiver ID, é edição (PATCH)
+        return await api.patch(`/appointments/client/${id}`, payload);
+      } else {
+        // Se não tiver ID, é novo agendamento (POST)
+        return await api.post("/appointments/client-booking", payload);
+      }
+    },
+    onSuccess: () => {
+      toast.success("Sucesso!");
       resetForm();
       setView("home");
     },
     onError: (err: any) => {
-      toast.error(err.response?.data?.error || "Erro ao processar agendamento.");
+      toast.error(err.response?.data?.error || "Erro ao processar.");
     }
-  });
-
-  const gradeHorarios = ["08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00", "18:30", "19:00"];
-  const availableSlots = gradeHorarios.filter((h) => {
-    return !agendamentosOcupados.some((appt: any) => format(new Date(appt.dataHora), "HH:mm") === h);
   });
 
   const totalServicos = selectedServices.reduce((acc, s) => acc + s.preco, 0);
   const totalProdutos = cartProducts.reduce((acc, item) => acc + (item.produto.preco * item.qtd), 0);
   const valorTotalGeral = totalServicos + totalProdutos;
 
-  const handleAddProduct = (prod: Produto) => {
+  const handleAddProduct = (prod: CategoriaProduto) => {
     // Validação real de estoque vindo do back
     if (prod.estoque <= 0) {
       return toast.error("Produto esgotado no estoque!");
@@ -119,21 +223,30 @@ export default function ClientBooking() {
   };
 
   const toggleService = (servico: Servico) => {
-    setSelectedServices((prev) => 
+    setSelectedServices((prev) =>
       prev.some((s) => s.id === servico.id) ? prev.filter((s) => s.id !== servico.id) : [...prev, servico]
     );
   };
 
-  const resetForm = () => {
-    setStep(1);
-    setSelectedBarber(null);
-    setSelectedDate("");
-    setSelectedTime("");
-    setSelectedServices([]);
-    setCartProducts([]);
+
+  const handleEdit = (appt: IClientAppointment) => {
+    // 1. Preenche os estados com os dados existentes
+    setSelectedBarber(appt.barbeiro);
+    setSelectedDate(format(new Date(appt.dataHora), "yyyy-MM-dd"));
+    setSelectedTime(format(new Date(appt.dataHora), "HH:mm"));
+    setSelectedServices(appt.servicos); // Assume que appt.servicos é um array de Servico
+    setClienteNome(appt.clienteNome);
+    setClienteTelefone(appt.clienteTelefone);
+    // Se houver produtos: setCartProducts(appt.produtosReservados);
+
+    // 2. Abre a tela de agendamento e pula para o último step (revisão)
+    setView("booking");
+    setStep(4);
   };
 
   const handleFinalSubmit = () => {
+
+    // Estado para armazenar o ID do agendamento em edição
     if (!clienteNome || !clienteTelefone) {
       return toast.error("Por favor, preencha seu nome e WhatsApp.");
     }
@@ -145,13 +258,23 @@ export default function ClientBooking() {
       servicoIds: selectedServices.map((s) => s.id),
       produtosReservados: cartProducts.map((p) => ({ id: p.produto.id, quantidade: p.qtd }))
     };
-    sendBooking.mutate(payload);
+    upsertAppointment.mutate({ id: editingId || undefined, payload });
+  };
+
+  const resetForm = () => {
+    setStep(1);
+    setSelectedBarber(null);
+    setEditingId(null);
+    setSelectedDate("");
+    setSelectedTime("");
+    setSelectedServices([]);
+    setCartProducts([]);
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 max-w-md mx-auto border-x border-zinc-900 shadow-2xl flex flex-col pb-20">
+    <div className="w-full min-h-screen flex flex-col justify-center items-center bg-zinc-950 p-4 md:p-8">
       <header className="p-4 bg-zinc-900/50 border-b border-zinc-900 sticky top-0 backdrop-blur-md z-40 flex justify-between items-center">
-        
+
         {valorTotalGeral > 0 && (
           <Badge className="bg-amber-500 text-zinc-950 flex gap-1 font-bold border-none">
             <ShoppingBag className="w-3 h-3" /> R$ {valorTotalGeral.toFixed(2)}
@@ -160,80 +283,105 @@ export default function ClientBooking() {
       </header>
 
       {view === "home" && (
-  <div className="flex-1 flex flex-col">
-    {/* Hero - Mantendo os botões principais */}
-    <div className="p-6 text-center space-y-4 border-b border-zinc-900 bg-zinc-900/20">
-      <h2 className="text-3xl font-black text-white">TK BARBEARIA</h2>
-      <p className="text-sm text-zinc-400">Qualidade e estilo em um só lugar.</p>
-      <div className="grid grid-cols-1 gap-3 pt-2">
-        <Button className="bg-amber-500 text-zinc-950 hover:bg-amber-400 font-bold py-6 text-base rounded-xl flex items-center justify-center gap-2" onClick={() => setView("booking")}>
-          <Scissors className="w-5 h-5" /> Agendar Serviço
-        </Button>
-        <Button variant="outline" className="border-zinc-800 text-zinc-300 hover:bg-zinc-900 py-6 text-sm font-medium rounded-xl flex items-center justify-center gap-2" onClick={() => setView("my-appointments")}>
-          <Clock className="w-4 h-4" /> Ver Meus Agendamentos
-        </Button>
-      </div>
-    </div>
+        <div className="w-full min-h-screen flex flex-col justify-center items-center bg-zinc-950 p-4 md:p-8">
+          {/* Hero - Mantendo os botões principais */}
+          <div className="w-full max-w-md md:max-w-2xl text-center space-y-8 bg-zinc-900/40 p-6 md:p-12 rounded-2xl border border-zinc-800/50 backdrop-blur-sm shadow-2xl">
 
-    {/* Seção de Produtos */}
-    <div className="p-4 space-y-3">
-      <h2 className="text-xs font-bold uppercase tracking-wider text-amber-500 flex items-center gap-2">
-        <ShoppingBag className="w-4 h-4" /> Produtos em Estoque
-      </h2>
-      <div className="grid grid-cols-2 gap-3">
-        {loadingProdutos ? (
-          <p className="text-xs text-zinc-500 col-span-2 py-4 text-center">Carregando...</p>
-        ) : (
-          produtos.map((p) => (
-            <div key={p.id} className="bg-zinc-900 border border-zinc-800 p-3 rounded-lg flex flex-col justify-between">
-              <p className="text-xs font-bold text-zinc-200">{p.nome}</p>
-              <div className="mt-2 flex justify-between items-end">
-                <span className="text-amber-500 font-bold text-xs">R$ {Number(p.preco).toFixed(2)}</span>
-                <span className="text-[10px] text-zinc-500">Qtd: {p.estoque}</span>
+
+            <div className="flex justify-center">
+
+              <img
+                src={logoTk}
+                alt="TK Barbearia"
+                className="w-40 h-40 md:w-48 md:h-48 object-contain rounded-full border-2 border-amber-500/20 p-1 animate-fade-in"
+              />
+            </div>
+
+            <h2 className="text-4xl md:text-5xl font-black tracking-wider text-white">TK BARBEARIA</h2>
+            <p className="text-sm md:text-base text-zinc-400 max-w-sm mx-auto">Qualidade e estilo em um só lugar.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              <Button className="bg-amber-500 text-zinc-950 hover:bg-amber-400 font-bold py-7 md:py-8 text-base rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/10 w-full" onClick={() => setView("booking")}>
+                <Scissors className="w-5 h-5" /> Agendar Serviço
+              </Button>
+              <Button variant="outline" className="border-zinc-800 text-zinc-300 hover:bg-zinc-900 hover:text-white py-7 md:py-8 text-sm md:text-base font-medium rounded-xl flex items-center justify-center gap-2 transition-all w-full" onClick={() => setView("my-appointments")}>
+                <Clock className="w-4 h-4" /> Ver Meus Agendamentos
+              </Button>
+            </div>
+          </div>
+
+          {/* Seção de Produtos */}
+          <div className="w-full max-w-md md:max-w-2xl mx-auto mt-8 p-6 md:p-8 bg-zinc-900/40 rounded-2xl border border-zinc-800/50 backdrop-blur-sm shadow-2xl space-y-4">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-amber-500 flex items-center gap-2 justify-center md:justify-start">
+              <ShoppingBag className="w-4 h-4" /> Produtos em Estoque
+            </h2>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {loadingProdutos ? (
+                <p className="text-xs text-zinc-500 col-span-full py-8 text-center animate-pulse">Carregando produtos...</p>
+              ) : (
+                /* O segredo está aqui: "achatamos" as categorias para pegar apenas a lista de produtos reais */
+                produtos.flatMap(categoria => categoria.produtos || []).map((p) => (
+                  <div key={p.id} className="bg-zinc-950/60 border border-zinc-800 p-4 rounded-xl flex flex-col justify-between hover:border-amber-500/30 transition-colors duration-200">
+                    <p className="text-xs md:text-sm font-bold text-zinc-200 line-clamp-2">{p.nome}</p>
+                    <div className="mt-3 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-1">
+                      <span className="text-amber-500 font-bold text-xs md:text-sm">
+                        R$ {Number(p.preco).toFixed(2).replace(".", ",")}
+                      </span>
+                      <span className="text-[10px] md:text-xs text-zinc-500">Qtd: {p.estoque}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Quem Somos */}
+          <div className="w-full max-w-md md:max-w-2xl mx-auto my-6 p-6 bg-zinc-900/40 rounded-2xl border border-zinc-800/50 backdrop-blur-sm shadow-2xl">
+            <h2 className="text-base font-bold text-zinc-100 mb-3 text-center md:text-left">Quem Somos</h2>
+            <p className="text-xs md:text-sm text-zinc-400 leading-relaxed text-center md:text-left">
+              A TK Barbearia é um espaço dedicado ao cuidado masculino, oferecendo cortes,
+              barba e serviços de qualidade com profissionalismo e atenção aos detalhes.
+              Nosso objetivo é elevar a autoestima dos clientes, proporcionando uma
+              experiência confortável e um visual sempre alinhado.
+            </p>
+          </div>
+
+          {/* Localização e Contatos */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+            {/* Contatos */}
+            <div className="space-y-3 flex flex-col justify-center text-center md:text-left">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-amber-500 flex items-center gap-2 justify-center md:justify-start">
+                <MapPin className="w-4 h-4" /> Localização & Contatos
+              </h2>
+              <div className="space-y-1">
+                <p className="text-sm text-zinc-300">Rua Rio Xingu, 299 - Ibura de baixo, Recife - PE, 51240-040</p>
+                <p className="text-sm text-amber-500 font-bold hover:underline cursor-pointer transition-all">
+                  WhatsApp: (81) 98895-3062
+                </p>
               </div>
             </div>
-          ))
-        )}
-      </div>
-    </div>
 
-    {/* Quem Somos */}
-    <div className="p-6 bg-zinc-900/30 border-y border-zinc-900 my-4">
-      <h2 className="text-sm font-bold text-zinc-100 mb-2">Quem Somos</h2>
-      <p className="text-xs text-zinc-400 leading-relaxed">
-        A TK Barbearia é um espaço dedicado ao cuidado masculino, oferecendo cortes, 
-        barba e serviços de qualidade com profissionalismo e atenção aos detalhes. 
-        Nosso objetivo é elevar a autoestima dos clientes, proporcionando uma 
-        experiência confortável e um visual sempre alinhado.
-      </p>
-    </div>
+            <div className="bg-zinc-900 p-4 rounded-xl border border-zinc-800">
+              <h3 className="text-xs font-bold text-zinc-400 mb-2">Horário de Funcionamento</h3>
+              <div className="text-xs text-zinc-300 space-y-1">
+                <p className="flex justify-between"><span>Segunda a Sexta:</span> <span>08:00 - 19:00</span></p>
+                <p className="flex justify-between"><span>Sábado:</span> <span>08:00 - 15:00</span></p>
+              </div>
+            </div>
+          </div>
 
-    {/* Localização e Contatos */}
-    <div className="p-4 space-y-4 mb-8">
-      <div className="space-y-2">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-500 flex items-center gap-2">
-          <MapPin className="w-4 h-4" /> Localização & Contatos
-        </h2>
-        <p className="text-sm text-zinc-300">Rua Exemplo, 123 - Centro, Cidade/UF</p>
-        <p className="text-sm text-amber-500 font-medium">WhatsApp: (81) 99999-9999</p>
-      </div>
-      
-      <div className="bg-zinc-900 p-4 rounded-xl border border-zinc-800">
-        <h3 className="text-xs font-bold text-zinc-400 mb-2">Horário de Funcionamento</h3>
-        <div className="text-xs text-zinc-300 space-y-1">
-          <p className="flex justify-between"><span>Segunda a Sexta:</span> <span>08:00 - 19:00</span></p>
-          <p className="flex justify-between"><span>Sábado:</span> <span>08:00 - 15:00</span></p>
+          {/* Meus Créditos */}
+          <div className="w-full max-w-md md:max-w-2xl mx-auto text-center pb-8 border-t border-zinc-900 pt-4">
+            <p className="text-[10px] md:text-xs text-zinc-500">
+              © {new Date().getFullYear()} TK Barbearia | Todos os direitos reservados
+            </p>
+            <p className="text-[9px] md:text-[10px] text-zinc-600 mt-1 uppercase tracking-widest font-medium">
+              Desenvolvido por Rafazxk
+            </p>
+          </div>
         </div>
-      </div>
-    </div>
-
-    {/* Meus Créditos */}
-    <div className="text-center pb-6">
-      <p className="text-[10px] text-zinc-600">© 2026 TK Barbearia | Todos os direitos reservados</p>
-      <p className="text-[9px] text-zinc-700 mt-1 uppercase tracking-widest">Desenvolvido por Você</p>
-    </div>
-  </div>
-)}
+      )}
 
       {view === "booking" && (
         <div className="p-4 flex-1 flex flex-col justify-between">
@@ -246,20 +394,62 @@ export default function ClientBooking() {
             </div>
 
             {step === 1 && (
-              <div className="space-y-3">
-                <h3 className="text-sm font-bold text-zinc-300">Escolha o Profissional</h3>
-                <div className="space-y-2">
+              <div className="space-y-4 animate-fade-in w-full max-w-xl mx-auto">
+                <h3 className="text-sm font-bold text-zinc-300 text-center sm:text-left">Selecione o profissional</h3>
+
+                {/* 🌐 GRID RESPONSIVO: 
+        - Por padrão em celular pequeno: 2 colunas (grid-cols-2) ou 3 colunas se for bem pequeno
+        - Em telas a partir de tablets (sm): vira 3 colunas com tamanho controlado */}
+                <div className="grid grid-cols-3 gap-3 justify-center max-w-md mx-auto sm:max-w-full">
                   {barbeiros.length === 0 ? (
-                    <p className="text-xs text-zinc-500 text-center py-4">Nenhum barbeiro disponível.</p>
+                    <p className="text-xs text-zinc-500 text-center col-span-3 py-4">
+                      Nenhum barbeiro disponível.
+                    </p>
                   ) : (
-                    barbeiros.map((b) => (
-                      <Card key={b.id} className={`p-4 border border-zinc-800 cursor-pointer transition-colors flex items-center justify-between ${selectedBarber?.id === b.id ? "bg-amber-500/10 border-amber-500" : "bg-zinc-900/30"}`} onClick={() => { setSelectedBarber(b); setStep(2); }}>
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center font-bold text-sm text-amber-500"><User className="w-4 h-4"/></div>
-                          <p className="text-sm font-medium text-zinc-200">{b.nome}</p>
+                    barbeiros.map((b) => {
+                      const isSelected = selectedBarber?.id === b.id;
+
+                      return (
+                        <div
+                          key={b.id}
+                          onClick={() => {
+                            setSelectedBarber(b);
+                            setStep(2);
+                          }}
+                          // 💡 max-w-[110px]: Garante que em telas gigantes o card nunca passe desse tamanho!
+                          className="flex flex-col items-center gap-1.5 w-full max-w-[110px] sm:max-w-[130px] cursor-pointer group mx-auto"
+                        >
+                          {/* 📸 CONTAINER DA FOTO */}
+                          <div
+                            className={`relative w-full aspect-[3/4] rounded-2xl overflow-hidden bg-zinc-800 border-2 transition-all duration-200 
+                  ${isSelected
+                                ? "border-amber-500 shadow-lg shadow-amber-500/10 scale-[1.02]"
+                                : "border-zinc-800 group-hover:border-zinc-700"
+                              }`}
+                          >
+                            {b.foto ? (
+                              <img
+                                src={`${api.defaults.baseURL?.replace("/api", "")}${b.foto}`}
+                                alt={`Foto de ${b.nome}`}
+                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-zinc-500">
+                                <User className="w-6 h-6" />
+                              </div>
+                            )}
+                          </div>
+
+                          {/* 🏷️ TEXTO COM O NOME */}
+                          <p
+                            className={`text-[11px] font-medium text-center truncate w-full transition-colors px-0.5
+                  ${isSelected ? "text-amber-500 font-bold" : "text-zinc-300 group-hover:text-zinc-100"}`}
+                          >
+                            {b.nome}
+                          </p>
                         </div>
-                      </Card>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
@@ -343,7 +533,7 @@ export default function ClientBooking() {
                     ))}
                     {cartProducts.map(item => (
                       <div key={item.produto.id} className="flex justify-between text-zinc-400">
-                        <span className="flex gap-1">📦 {item.produto.nome} <b className="text-amber-500">x{item.qtd}</b></span> 
+                        <span className="flex gap-1">📦 {item.produto.nome} <b className="text-amber-500">x{item.qtd}</b></span>
                         <span>R$ {(Number(item.produto.preco) * item.qtd).toFixed(2)}</span>
                       </div>
                     ))}
@@ -355,8 +545,8 @@ export default function ClientBooking() {
                   </div>
                 </div>
 
-                <Button className="w-full bg-amber-500 text-zinc-950 hover:bg-amber-400 font-bold py-3" disabled={sendBooking.isPending} onClick={handleFinalSubmit}>
-                  {sendBooking.isPending ? "Confirmando..." : "Confirmar Agendamento 🚀"}
+                <Button className="w-full bg-amber-500 text-zinc-950 hover:bg-amber-400 font-bold py-3" disabled={upsertAppointment.isPending} onClick={handleFinalSubmit}>
+                  {upsertAppointment.isPending ? "Confirmando..." : "Confirmar Agendamento 🚀"}
                 </Button>
               </div>
             )}
@@ -378,7 +568,7 @@ export default function ClientBooking() {
           </div>
 
           <div className="space-y-2 pt-2">
-            {loadingMeus ? (
+            {loadingMeusAgendamentos ? (
               <p className="text-xs text-zinc-500 text-center py-4">Buscando na base...</p>
             ) : searchedPhone && meusAgendamentos.length === 0 ? (
               <p className="text-xs text-zinc-500 text-center py-4">Nenhum agendamento ativo encontrado para este telefone.</p>
@@ -391,8 +581,81 @@ export default function ClientBooking() {
                       Confirmado
                     </Badge>
                   </div>
-                  <p className="text-xs text-zinc-300">💈 Profissional: <b>{appt.barbeiro?.nome}</b></p>
-                  <p className="text-xs text-zinc-400">✂️ {appt.servicos?.map((s: any) => s.nome).join(", ")}</p>
+
+
+                  {meusAgendamentos.map((appointment) => (
+                    <div
+                      key={appointment.id}
+                      className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 space-y-3"
+                    >
+                      <div className="flex justify-between">
+                        <h3 className="font-semibold text-lg">
+                          {appointment.clienteNome}
+                        </h3>
+
+                        <span className="text-emerald-400 font-bold">
+                          R$ {appointment.totalPreco.toFixed(2)}
+                        </span>
+                      </div>
+
+                      <p>
+                        📞 {appointment.clienteTelefone}
+                      </p>
+
+                      <p>
+                        💈 {appointment.barbeiro.nome}
+                      </p>
+
+                      <p>
+                        📅 {new Date(appointment.dataHora).toLocaleDateString("pt-BR")}
+                      </p>
+
+                      <p>
+                        🕐 {new Date(appointment.dataHora).toLocaleTimeString("pt-BR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </p>
+
+                      <div>
+                        <strong>Serviços</strong>
+
+                        <ul className="mt-2 space-y-1">
+                          {appointment.servicos.map((service) => (
+                            <li
+                              key={service.id}
+                              className="flex justify-between"
+                            >
+                              <span>{service.nome}</span>
+
+                              <span>
+                                R$ {Number(service.preco).toFixed(2)}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div className="flex gap-3 pt-3">
+                        <button
+                          onClick={() => {
+                            setEditingId(appointment.id);
+                            handleEdit(appointment)
+                          }}
+                          className="flex-1 rounded-lg bg-amber-500 py-2 font-medium"
+                        >
+                          Editar
+                        </button>
+
+                        <button
+                          onClick={() => deleteAppointment.mutate(appointment.id)}
+                          className="flex-1 rounded-lg bg-red-600 py-2 font-medium"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </Card>
               ))
             )}

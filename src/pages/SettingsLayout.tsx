@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { Camera } from "lucide-react";
 import { useBarber } from "@/contexts/BarberContext";
 import { Save, CalendarDays, CheckCircle2, Edit2, X, Bell } from "lucide-react";
 
@@ -22,11 +23,52 @@ export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
   const { user } = useBarber();
   const queryClient = useQueryClient();
   const [configs, setConfigs] = useState<DiaConfig[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [mostrarSucesso, setMostrarSucesso] = useState(false);
   const [isEditandoGrade, setIsEditandoGrade] = useState(false);
-
   // Define o alvo: null para configuração global/admin, ou o ID do barbeiro logado
   const barbeiroIdDestino = user?.role === "admin" ? null : user?.id;
+
+const [nomeBarbeiro, setNomeBarbeiro] = useState<string>(() => {
+  const usuarioSalvo = localStorage.getItem("@TKBarber:user");
+  if (usuarioSalvo) {
+    const usuarioObj = JSON.parse(usuarioSalvo);
+    return usuarioObj.nome || "";
+  }
+  return "";
+});
+
+// Seu estado da foto (caso precise carregar a foto antiga também ao abrir a página)
+
+
+useEffect(() => {
+  const usuarioSalvo = localStorage.getItem("@TKBarber:user");
+  if (usuarioSalvo) {
+    const usuarioObj = JSON.parse(usuarioSalvo);
+    // Se você salvar o caminho da foto no localStorage também:
+    if (usuarioObj.foto) setFotoUrl(usuarioObj.foto);
+  }
+}, []);
+
+const [fotoUrl, setFotoUrl] = useState<string>(() => {
+  const usuarioSalvo = localStorage.getItem("@TKBarber:user");
+  if (usuarioSalvo) {
+    const usuarioObj = JSON.parse(usuarioSalvo);
+    return usuarioObj.foto || ""; // Pega a foto salva na sessão
+  }
+  return "";
+});
+
+// 2. Garante que se o localStorage atualizar por fora, o estado acompanhe
+useEffect(() => {
+  const usuarioSalvo = localStorage.getItem("@TKBarber:user");
+  if (usuarioSalvo) {
+    const usuarioObj = JSON.parse(usuarioSalvo);
+    if (usuarioObj.foto) {
+      setFotoUrl(usuarioObj.foto);
+    }
+  }
+}, []);
 
   // 📥 Buscar configurações sincronizadas por Barbeiro
   const { data: serverData, isLoading: carregandoHorarios } = useQuery<DiaConfig[]>({
@@ -59,6 +101,39 @@ export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
       setConfigs(diasIniciais);
     }
   }, [serverData]);
+
+const handleMudancaArquivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const arquivo = e.target.files?.[0];
+  if (!arquivo) return;
+
+  const formData = new FormData();
+  formData.append("avatar", arquivo); 
+
+  try {
+    const res = await api.post("/auth/upload-avatar", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+      withCredentials: true 
+    });
+
+    const novaFotoUrl = res.data.fotoUrl;
+    const urlComTempo = `${novaFotoUrl}?t=${new Date().getTime()}`;
+    
+    // 1. Atualiza o estado para mudar na tela na hora
+    setFotoUrl(urlComTempo);
+
+    // 🔑 2. ATUALIZA O LOCALSTORAGE: Garante que a foto persista após o F5!
+    const usuarioSalvo = localStorage.getItem("@TKBarber:user");
+    if (usuarioSalvo) {
+      const usuarioObj = JSON.parse(usuarioSalvo);
+      usuarioObj.foto = novaFotoUrl; // Salva o caminho limpo da foto no perfil do usuário
+      localStorage.setItem("@TKBarber:user", JSON.stringify(usuarioObj));
+    }
+
+    alert("Foto de perfil atualizada!");
+  } catch (error) {
+    console.error("Erro ao subir imagem:", error);
+  }
+};
 
   // 📤 Mutation para salvar os horários
   const updateHoursMutation = useMutation({
@@ -269,19 +344,101 @@ export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
           )}
 
           {/* 👤 PERFIL */}
-          {abaInicial === "perfil" && (
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-base font-bold text-foreground">Meu Perfil de Acesso</h3>
-                <p className="text-xs text-muted-foreground">Gerencie suas credenciais.</p>
-              </div>
-              <hr className="border-border/60" />
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground">Seu Nome</label>
-                <input type="text" defaultValue="Rafael Silva" className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary" />
-              </div>
-            </div>
-          )}
+
+{abaInicial === "perfil" && (
+  <div className="space-y-6 max-w-md animate-fade-in">
+    <div>
+      <h3 className="text-base font-bold text-foreground">Meu Perfil de Acesso</h3>
+      <p className="text-xs text-muted-foreground">Gerencie suas credenciais e foto de exibição.</p>
+    </div>
+    <hr className="border-border/60" />
+
+    {/* SEÇÃO DO AVATAR COM UPLOAD EM TEMPO REAL */}
+    <div className="flex items-center gap-6 bg-zinc-900/30 p-4 rounded-xl border border-zinc-800/50">
+      
+      {/* Container da foto clicável */}
+      <div 
+    className="relative group cursor-pointer w-16 h-16 flex-shrink-0" 
+    onClick={() => fileInputRef.current?.click()}
+    title="Clique para alterar sua foto de perfil"
+  >
+    <img 
+  src={
+    fotoUrl 
+      ? `${api.defaults.baseURL?.replace("/api", "")}${fotoUrl}` 
+      : "https://github.com/github.png"
+  } 
+  alt="Sua foto de perfil" 
+  className="w-full h-full rounded-full object-cover border-2 border-amber-500/30 p-0.5 group-hover:opacity-75 transition-all"
+/>
+        {/* Efeito de hover escurecendo e mostrando o ícone de câmera */}
+       <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+      <span className="text-[10px] text-white font-medium">Trocar</span>
+      {/* <Camera className="w-4 h-4 text-white" /> */}
+    </div>
+  </div>
+
+     <div className="space-y-1 flex-1">
+    <p className="text-sm font-bold text-foreground">Sua Foto de Perfil</p>
+    <p className="text-[11px] text-muted-foreground">Clique no círculo para carregar uma imagem do seu dispositivo.</p>
+    
+    {/* Input de arquivo escondido */}
+    <input 
+      type="file" 
+      ref={fileInputRef} 
+      onChange={handleMudancaArquivo} 
+      accept="image/*" 
+      className="hidden" 
+    />
+  </div>
+</div>
+
+    {/* SEÇÃO DO NOME (AGORA DINÂMICO) */}
+    
+    <div className="space-y-1.5">
+    <label className="text-xs font-semibold text-foreground">Seu Nome</label>
+    <input 
+      type="text" 
+      value={nomeBarbeiro} 
+      onChange={(e) => setNomeBarbeiro(e.target.value)}
+      className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary" 
+    />
+  </div>
+
+    {/* BOTÃO PARA SALVAR AS ALTERAÇÕES */}
+    <div className="pt-2">
+    <button 
+      onClick={async () => {
+        try {
+          // 1. Envia o novo nome para o backend atualizar no banco de dados (Drizzle)
+          // Ajuste a rota para a rota correspondente no seu backend (ex: /auth/update-profile ou /barbers/profile)
+          const res = await api.put("/auth/update-profile", { 
+            nome: nomeBarbeiro 
+          }, { 
+            withCredentials: true 
+          });
+
+          // 2. Atualiza o LocalStorage para sincronizar o nome novo no Front-end inteiro
+          const usuarioSalvo = localStorage.getItem("@TKBarber:user");
+          if (usuarioSalvo) {
+            const usuarioObj = JSON.parse(usuarioSalvo);
+            usuarioObj.nome = nomeBarbeiro; // Substitui pelo nome novo
+            localStorage.setItem("@TKBarber:user", JSON.stringify(usuarioObj));
+          }
+
+          alert("Alterações salvas com sucesso!");
+        } catch (error) {
+          console.error("Erro ao salvar perfil:", error);
+          alert("Erro ao salvar alterações.");
+        }
+      }}
+      className="bg-amber-500 text-zinc-950 font-bold px-4 py-2 text-xs rounded-lg hover:bg-amber-400 transition-all cursor-pointer"
+    >
+      Salvar Alterações
+    </button>
+  </div>
+</div>
+)}
 
           {/* 🎛️ PREFERÊNCIAS */}
           {abaInicial === "preferencias" && (

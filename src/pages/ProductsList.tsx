@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { api } from "@/lib/api";
-import { Package, Plus, ChevronDown, ChevronRight, Trash2, Edit2, X, GripVertical, Layers } from "lucide-react";
+import { Plus, ChevronDown, ChevronRight, Trash2, Edit2, X, GripVertical, Layers } from "lucide-react";
 
 interface Produto {
   id: string | number;
@@ -35,15 +35,15 @@ export default function ProductsList() {
   const { data: serverData = [], isLoading } = useQuery<CategoriaProduto[]>({
     queryKey: ["products-list"],
     queryFn: async () => {
-      const res = await api.get("/products/enriched");
+      const res = await api.get("/products/");
       return res.data;
     }
   });
 
   useEffect(() => {
-   if (serverData && JSON.stringify(serverData) !== JSON.stringify(items)) {
-    setItems(serverData);
-  }
+    if (serverData && JSON.stringify(serverData) !== JSON.stringify(items)) {
+      setItems(serverData);
+    }
   }, [serverData]);
 
   const updateOrderMutation = useMutation({
@@ -69,7 +69,7 @@ export default function ProductsList() {
   });
 
   const createProductMutation = useMutation({
-    mutationFn: async (data: any) => api.post("/products/items", data),
+    mutationFn: async (data: any) => api.post("/products/items/", data),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["products-list"] }); fecharModal(); }
   });
 
@@ -121,6 +121,12 @@ export default function ProductsList() {
     if (n?.trim() && n !== nomeAtual) updateCategoryMutation.mutate({ id, nome: n.trim() });
   };
 
+  // NOVA FUNÇÃO: Abre o modal injetando opcionalmente o ID da categoria
+  const handleAbrirNovoProduto = (catId?: string) => {
+    setCategoriaSelecionada(catId || "");
+    setIsModalAberto(true);
+  };
+
   const handleAbrirEditarProduto = (prod: Produto, catId: string) => {
     setEditandoProdutoId(prod.id.toString());
     setNome(prod.nome);
@@ -164,7 +170,7 @@ export default function ProductsList() {
         </div>
         <div className="flex items-center gap-3">
           <button onClick={handleCriarCategoria} className="flex items-center gap-2 bg-secondary border border-border text-foreground font-medium px-4 py-2.5 rounded-lg text-sm hover:bg-zinc-800 transition-colors cursor-pointer"><Layers className="h-4 w-4" /> Nova Categoria</button>
-          <button onClick={() => setIsModalAberto(true)} className="flex items-center gap-2 bg-primary text-primary-foreground font-semibold px-4 py-2.5 rounded-lg text-sm hover:opacity-90 shadow-lg cursor-pointer"><Plus className="h-4 w-4" /> Novo Produto</button>
+          <button onClick={() => handleAbrirNovoProduto()} className="flex items-center gap-2 bg-primary text-primary-foreground font-semibold px-4 py-2.5 rounded-lg text-sm hover:opacity-90 shadow-lg cursor-pointer"><Plus className="h-4 w-4" /> Novo Produto</button>
         </div>
       </div>
 
@@ -190,6 +196,8 @@ export default function ProductsList() {
                             </div>
                           </div>
                           <div className="flex items-center gap-1">
+                            {/* NOVO BOTÃO: Adiciona produto diretamente nesta categoria */}
+                            <button onClick={() => handleAbrirNovoProduto(catIdStr)} title="Adicionar produto nesta categoria" className="p-2 text-primary hover:bg-primary/10 rounded-lg cursor-pointer"><Plus className="h-4 w-4" /></button>
                             <button onClick={() => handleEditarCategoria(catIdStr, categoria.nome)} className="p-2 text-muted-foreground hover:bg-secondary hover:text-foreground rounded-lg cursor-pointer"><Edit2 className="h-4 w-4" /></button>
                             <button onClick={() => { if(confirm("Excluir categoria e todos os produtos dela?")) deleteCategoryMutation.mutate(catIdStr); }} className="p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive rounded-lg cursor-pointer"><Trash2 className="h-4 w-4" /></button>
                           </div>
