@@ -63,6 +63,7 @@ export function BarberProvider({ children }: { children: React.ReactNode }) {
 
 export function useBarber() {
   const context = useContext(BarberContext);
+  
   if (!context) {
     throw new Error("useBarber deve ser usado dentro de um BarberProvider");
   }

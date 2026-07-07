@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { CalendarX, Clock, Calendar, Plus, Trash2, AlertCircle, MapPin, X } from "lucide-react";
+import { useBarber } from "@/contexts/BarberContext";
 
 interface Bloqueio {
   id: number;
@@ -16,6 +17,9 @@ interface Bloqueio {
 
 export default function ScheduleBlocks() {
   const queryClient = useQueryClient();
+
+  const { user } = useBarber();
+
   const [tipoModal, setTipoModal] = useState<"horario" | "data" | null>(null);
 
   // Estados dos formulários
@@ -25,12 +29,7 @@ export default function ScheduleBlocks() {
   const [horaFim, setHoraFim] = useState("");
   const [barbeiroId, setBarbeiroId] = useState("");
 
-  // Feriados estáticos de Recife fornecidos
-  const feriadosRecife = [
-    { data: "2026-06-24", nome: "São João (Feriado Municipal)" },
-    { data: "2026-07-16", nome: "Nossa Senhora do Carmo (Padroeira de Recife)" },
-    { data: "2026-12-08", nome: "Nossa Senhora da Conceição (Feriado Municipal)" },
-  ];
+  const [escopoBloqueio, setEscopoBloqueio] = useState<"todos" | "individual">("todos");
 
   // 📥 Buscar bloqueios do Banco de Dados
   const { data: bloqueios = [], isLoading } = useQuery<Bloqueio[]>({
@@ -56,27 +55,33 @@ export default function ScheduleBlocks() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["schedule-blocks"] })
   });
 
+
+  const handleSalvarBloqueio = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!descricao || !dataInicio) return;
+
+    // Definição dinâmica do barbeiroId com base na escolha do escopo
+    const finalBarbeiroId = escopoBloqueio === "individual" && user?.id
+      ? Number(user.id)
+      : null;
+
+    createBlockMutation.mutate({
+      tipo: tipoModal,
+      descricao,
+      dataInicio,
+      horaInicio: tipoModal === "horario" ? horaInicio : undefined,
+      horaFim: tipoModal === "horario" ? horaFim : undefined,
+      barbeiroId: finalBarbeiroId
+    });
+  };
+
   const fecharModal = () => {
     setTipoModal(null);
     setDescricao("");
     setDataInicio("");
     setHoraInicio("");
     setHoraFim("");
-    setBarbeiroId("");
-  };
-
-  const handleSalvarBloqueio = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!descricao || !dataInicio) return;
-
-    createBlockMutation.mutate({
-      tipo: tipoModal,
-      descricao,
-      dataInicio,
-      horaInicio,
-      horaFim,
-      barbeiroId: barbeiroId ? Number(barbeiroId) : null
-    });
+    setEscopoBloqueio("todos"); // Reseta para o padrão
   };
 
   // Formata datas do padrão ISO (aaaa-mm-dd) vindo do banco para o padrão pt-BR (dd/mm/aaaa)
@@ -91,16 +96,17 @@ export default function ScheduleBlocks() {
 
   return (
     <div className="space-y-6 max-w-5xl">
-      
+
       {/* CABEÇALHO */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">Bloquear Horários & Datas</h1>
           <p className="text-sm text-muted-foreground">Gerencie exceções na agenda para impedir agendamentos indesejados de clientes.</p>
         </div>
-        
+
         <div className="flex items-center gap-3">
-          <button 
+          {/* 🕒 BOTÃO DE BLOQUEAR HORÁRIO (Corrigido para abrir o modal de horário) */}
+          <button
             onClick={() => setTipoModal("horario")}
             className="flex items-center gap-2 bg-secondary border border-border text-foreground font-medium px-4 py-2.5 rounded-lg text-sm hover:bg-zinc-800 transition-colors cursor-pointer"
           >
@@ -108,7 +114,8 @@ export default function ScheduleBlocks() {
             Bloquear Horário
           </button>
 
-          <button 
+          {/* 📅 BOTÃO DE BLOQUEAR DATA INTEIRA */}
+          <button
             onClick={() => setTipoModal("data")}
             className="flex items-center gap-2 bg-primary text-primary-foreground font-semibold px-4 py-2.5 rounded-lg text-sm hover:opacity-90 shadow-lg shadow-primary/10 transition-all cursor-pointer"
           >
@@ -118,23 +125,6 @@ export default function ScheduleBlocks() {
         </div>
       </div>
 
-      {/* PAINEL DE AVISO DE FERIADOS LOCAIS */}
-      <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex gap-3 items-start">
-        <AlertCircle className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
-        <div className="space-y-1">
-          <div className="flex items-center gap-1.5 text-sm font-semibold text-amber-400">
-            <MapPin className="h-3.5 w-3.5" />
-            Próximos Feriados em Recife (Fique Atento):
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-            {feriadosRecife.map((f, index) => (
-              <div key={index} className="text-xs text-muted-foreground bg-background/40 px-2 py-1 rounded border border-border/40">
-                <span className="font-medium text-foreground">{f.data.split('-').reverse().slice(0,2).join('/')}</span> - {f.nome}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
 
       {/* LISTAGEM DE REGRAS DE BLOQUEIO ATIVAS */}
       <div className="bg-card rounded-xl border border-border overflow-hidden shadow-sm">
@@ -147,11 +137,10 @@ export default function ScheduleBlocks() {
             bloqueios.map((bloqueio) => (
               <div key={bloqueio.id} className="p-4 flex items-center justify-between hover:bg-secondary/10 transition-colors">
                 <div className="flex items-center gap-4">
-                  <div className={`h-9 w-9 rounded-lg flex items-center justify-center border ${
-                    bloqueio.tipo === "horario" 
-                      ? "bg-blue-500/10 text-blue-400 border-blue-500/20" 
+                  <div className={`h-9 w-9 rounded-lg flex items-center justify-center border ${bloqueio.tipo === "horario"
+                      ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
                       : "bg-purple-500/10 text-purple-400 border-purple-500/20"
-                  }`}>
+                    }`}>
                     {bloqueio.tipo === "horario" ? <Clock className="h-4 w-4" /> : <CalendarX className="h-4 w-4" />}
                   </div>
 
@@ -162,7 +151,7 @@ export default function ScheduleBlocks() {
                         {bloqueio.barbeiroNome || "Todos os Barbeiros"}
                       </span>
                     </div>
-                    
+
                     <p className="text-xs text-muted-foreground pt-0.5">
                       {bloqueio.tipo === "horario" ? (
                         <>Data: <span className="text-foreground">{formatarData(bloqueio.dataInicio)}</span> das <span className="text-primary font-medium">{bloqueio.horaInicio?.slice(0, 5)} às {bloqueio.horaFim?.slice(0, 5)}</span></>
@@ -173,8 +162,8 @@ export default function ScheduleBlocks() {
                   </div>
                 </div>
 
-                <button 
-                  onClick={() => { if(confirm("Remover esta regra de bloqueio?")) deleteBlockMutation.mutate(bloqueio.id); }}
+                <button
+                  onClick={() => { if (confirm("Remover esta regra de bloqueio?")) deleteBlockMutation.mutate(bloqueio.id); }}
                   className="p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors cursor-pointer"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -201,8 +190,10 @@ export default function ScheduleBlocks() {
               <button onClick={fecharModal} className="text-muted-foreground hover:text-foreground cursor-pointer">
                 <X className="h-4 w-4" />
               </button>
+
+              
             </div>
-            
+
             <form onSubmit={handleSalvarBloqueio} className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold">Motivo / Descrição</label>
@@ -231,7 +222,13 @@ export default function ScheduleBlocks() {
                 <label className="text-xs font-semibold">Barbeiro Afetado</label>
                 <select value={barbeiroId} onChange={(e) => setBarbeiroId(e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary text-foreground cursor-pointer">
                   <option value="">Todos os Barbeiros (Barberia Inteira)</option>
-                  {/* Se tiver lista de barbeiros mapeados dinamicamente adicione aqui */}
+
+
+                  {user && (
+                    <option value={user.id}>
+                      Apenas Comigo ({user.nome})
+                    </option>
+                  )}
                 </select>
               </div>
 
