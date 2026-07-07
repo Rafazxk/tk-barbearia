@@ -96,6 +96,23 @@ export default function ClientBooking() {
     }
   });
 
+
+  const { data: slotsLivresDoBackend = [], isLoading: carregandoHorarios } = useQuery<string[]>({
+    queryKey: ["client-appointments-lookup", selectedDate, selectedBarber?.id],
+    queryFn: async () => {
+      const res = await api.get("/appointments/available", {
+        // Passando ambos os formatos de parâmetro para garantir a leitura do controller
+        params: { 
+          date: selectedDate, 
+          barberId: selectedBarber?.id,
+          barbeiroId: selectedBarber?.id
+        }
+      });
+      return Array.isArray(res.data) ? res.data : []; // Espera vir ex: ["10:00", "10:30", "11:00"]
+    },
+    enabled: step === 2 && !!selectedDate && !!selectedBarber,
+  });
+
   const { data: agendamentosOcupados = [] } = useQuery({
     queryKey: ["client-appointments-lookup", selectedDate, selectedBarber?.id],
     queryFn: async () => {
@@ -131,28 +148,21 @@ export default function ClientBooking() {
     const horaAtual = agora.getHours();
     const minAtual = agora.getMinutes();
 
-    // Comparação de string segura
     const hojeFormatado = format(new Date(), "yyyy-MM-dd");
     const ehHoje = selectedDate === hojeFormatado;
 
-    return gradeHorarios.filter((horario) => {
-      // 1. Ocupação
-      const estaOcupado = agendamentosDoDia.some((appt: any) => {
-        if (!appt.dataHora) return false;
-        return format(new Date(appt.dataHora), "HH:mm") === horario;
-      });
-      if (estaOcupado) return false;
-
-      // 2. Filtro de horários
+    // Filtra apenas para impedir o cliente de agendar um horário que já passou hoje
+    return slotsLivresDoBackend.filter((horario) => {
       if (ehHoje) {
         const [h, m] = horario.split(":").map(Number);
-        if (h < horaAtual || (h === horaAtual && m <= minAtual)) {
+        // Se a hora do slot for menor que agora, ou igual com minutos passados, esconde
+        if (h! < horaAtual || (h === horaAtual && m! <= minAtual)) {
           return false;
         }
       }
       return true;
     });
-  }, [gradeHorarios, agendamentosDoDia, selectedDate, selectedBarber]);
+  }, [slotsLivresDoBackend, selectedDate]);
 
 
   const { data: meusAgendamentos = [], isLoading: loadingMeusAgendamentos } = useQuery<IClientAppointment[]>({

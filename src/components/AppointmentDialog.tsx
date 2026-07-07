@@ -27,27 +27,6 @@ interface Categoria {
   servicos: Servico[];
 }
 
-// 🛡️ FUNÇÃO AUXILIAR DE FORMATAÇÃO 100% SEGURA CONTRA RANGEERROR
-function safeFormatTime(dateSource: string | undefined | null): string {
-  if (!dateSource) return "";
-  
-  // Tenta parsear como ISO string (padrão JSON/banco)
-  let parsedDate = parseISO(dateSource);
-  
-  // Se falhar, tenta o construtor nativo
-  if (!isValid(parsedDate)) {
-    parsedDate = new Date(dateSource);
-  }
-  
-  // Se ainda assim for inválido, retorna uma string vazia em vez de quebrar a aplicação
-  if (!isValid(parsedDate)) {
-    console.warn("⚠️ Data inválida detectada no AppointmentDialog:", dateSource);
-    return "";
-  }
-  
-  return format(parsedDate, "HH:mm");
-}
-
 export function AppointmentDialog({ 
   open, 
   onOpenChange, 
@@ -77,15 +56,20 @@ export function AppointmentDialog({
     enabled: open,
   });
 
-  // 📥 BUSCA DE AGENDAMENTOS DO DIA
-  const { data: agendamentosDoDia = [] } = useQuery<Appointment[]>({
-    queryKey: ["appointments", dataInput, user?.id],
+  // 📥 BUSCA OS SLOTS CALCULADOS DO EXPEDIENTE DIRETO DO BACKEND
+  const { data: slotsDoExpediente = [], isLoading: isLoadingSlots } = useQuery<string[]>({
+    queryKey: ["available-slots-dinamicos", dataInput, user?.id],
     queryFn: async () => {
-      const response = await api.get("/appointments", {
-        params: { date: dataInput, barberId: user?.id }
+      const response = await api.get("/appointments/available", {
+        params: { 
+           date: dataInput,
+           barberId: user?.id
+          
+          }
       });
-      return response.data;
+      return response.data; // Espera vir do service ex: ["10:00", "10:30", "11:00"]
     },
+    // Só roda se o dialog estiver aberto, e tivermos uma data e o ID do barbeiro logado
     enabled: open && !!dataInput && !!user?.id,
   });
 
@@ -130,23 +114,11 @@ export function AppointmentDialog({
 
   if (!open) return null;
 
-  // --- 🛠️ CÁLCULO DINÂMICO DE HORÁRIOS LIVRES ---
-  const gradeHorarios = [
-    "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
-    "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", 
-    "17:00", "17:30", "18:00", "18:30", "19:00"
-  ];
-
-  // 🔄 CORRIGIDO: Agora consome a função segura para evitar o crash na linha 98
-  const availableSlots = gradeHorarios.filter((horario) => {
-    const jaEstaOcupado = agendamentosDoDia.some((appt) => {
-      const horaAgendada = safeFormatTime(appt.dataHora);
-      return horaAgendada === horario;
-    });
-    return !jaEstaOcupado;
-  });
-
-  const opcoesDeHorario = [...availableSlots];
+  // --- 🛠️ MONTAGEM DOS HORÁRIOS PARA EXIBIÇÃO ---
+  // Os horários livres agora são estritamente o que veio da nossa rota matemática!
+  const opcoesDeHorario = [...slotsDoExpediente];
+  
+  // Caso seja uma edição, força a hora atual do agendamento a aparecer na lista se não estiver nela
   if (appointment && horaInput && !opcoesDeHorario.includes(horaInput)) {
     opcoesDeHorario.push(horaInput);
     opcoesDeHorario.sort();
@@ -185,7 +157,7 @@ export function AppointmentDialog({
             {appointment ? "✏️ Editar Agendamento" : "💈 Novo Agendamento"}
           </h2>
           <p className="text-xs text-zinc-400 mt-0.5">
-            Escolha a data e selecione um dos horários ainda disponíveis.
+            Escolha a data e selecione um dos horários calculados para o seu expediente.
           </p>
         </div>
 
@@ -235,9 +207,13 @@ export function AppointmentDialog({
             
             <div className="space-y-1">
               <label className="text-xs font-medium text-zinc-300">Horário Disponível</label>
-              {opcoesDeHorario.length === 0 ? (
+              {isLoadingSlots ? (
+                <div className="flex items-center justify-center h-[38px] text-xs text-zinc-500 bg-zinc-900 border border-zinc-800 rounded-lg animate-pulse">
+                  Carregando...
+                </div>
+              ) : opcoesDeHorario.length === 0 ? (
                 <div className="flex items-center justify-center h-[38px] text-xs font-semibold text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-2.5 text-center leading-tight">
-                  🚫 Horários esgotados
+                  🚫 Fechado / Esgotado
                 </div>
               ) : (
                 <select

@@ -87,16 +87,16 @@ useEffect(() => {
     if (serverData && serverData.length > 0) {
       setConfigs(serverData);
     } else if (serverData && serverData.length === 0) {
-      // 💡 Se o banco está vazio, gera a estrutura inicial em memória SEM id.
-      // O seu backend receberá isso e fará o INSERT corretamente.
+     
+
       const diasIniciais: DiaConfig[] = [
-        { diaSemana: 1, diaNome: "Segunda-feira", trabalha: true, horaAbertura: "09:00", horaFechamento: "18:00", intervaloMinutos: 30 },
-        { diaSemana: 2, diaNome: "Terça-feira", trabalha: true, horaAbertura: "09:00", horaFechamento: "18:00", intervaloMinutos: 30 },
-        { diaSemana: 3, diaNome: "Quarta-feira", trabalha: true, horaAbertura: "09:00", horaFechamento: "18:00", intervaloMinutos: 30 },
-        { diaSemana: 4, diaNome: "Quinta-feira", trabalha: true, horaAbertura: "09:00", horaFechamento: "18:00", intervaloMinutos: 30 },
-        { diaSemana: 5, diaNome: "Sexta-feira", trabalha: true, horaAbertura: "09:00", horaFechamento: "18:00", intervaloMinutos: 30 },
-        { diaSemana: 6, diaNome: "Sábado", trabalha: true, horaAbertura: "08:00", horaFechamento: "16:00", intervaloMinutos: 30 },
-        { diaSemana: 0, diaNome: "Domingo", trabalha: false, horaAbertura: "09:00", horaFechamento: "12:00", intervaloMinutos: 30 },
+        { diaSemana: 1, diaNome: "Segunda-feira", trabalha: true, horaAbertura: "08:00", horaFechamento: "20:00", intervaloMinutos: 30 },
+  { diaSemana: 2, diaNome: "Terça-feira", trabalha: true, horaAbertura: "08:00", horaFechamento: "20:00", intervaloMinutos: 30 },
+  { diaSemana: 3, diaNome: "Quarta-feira", trabalha: true, horaAbertura: "08:00", horaFechamento: "20:00", intervaloMinutos: 30 },
+  { diaSemana: 4, diaNome: "Quinta-feira", trabalha: true, horaAbertura: "08:00", horaFechamento: "20:00", intervaloMinutos: 30 },
+  { diaSemana: 5, diaNome: "Sexta-feira", trabalha: true, horaAbertura: "08:00", horaFechamento: "20:00", intervaloMinutos: 30 },
+  { diaSemana: 6, diaNome: "Sábado", trabalha: true, horaAbertura: "08:00", horaFechamento: "18:00", intervaloMinutos: 30 },
+  { diaSemana: 0, diaNome: "Domingo", trabalha: false, horaAbertura: "08:00", horaFechamento: "12:00", intervaloMinutos: 30 },
       ];
       setConfigs(diasIniciais);
     }

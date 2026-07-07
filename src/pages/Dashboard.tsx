@@ -60,6 +60,8 @@ function buildWhatsAppLink(appt: Appointment): string {
   return `https://wa.me/${fullPhone}?text=${msg}`;
 }
 
+
+
 function StatCard({ title, value, sub, icon: Icon, loading }: {
   title: string; value: string; sub?: string; icon: React.ElementType; loading: boolean;
 }) {
