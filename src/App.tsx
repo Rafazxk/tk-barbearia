@@ -7,7 +7,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import Dashboard from "@/pages/Dashboard";
 import Appointments from "@/pages/Appointments";
 import Financial from "@/pages/Financial";
-import BarberAccounts from "@/pages/ClientBooking";
+import BarberAccounts from "@/pages/BarberAccounts";
 
 import ClientsList from "@/pages/ClientsList";
 import ServicesList from "@/pages/ServicesList";
@@ -42,7 +42,6 @@ function AdminRouter() {
         <Route path="/whatsapp" component={WhatsappConfig} />
   
 
-        {/* ⚙️ SUB-ROTAS DE CONFIGURAÇÃO (Corrigidas para o wouter ler caminhos profundos) */}
         <Route path="/configuracoes/barbearia">
           <SettingsLayout abaInicial="barbearia" />
         </Route>
@@ -89,7 +88,7 @@ function AppContent() {
   return (
     <WouterRouter base={base}>
       <Switch>
-        {/* 👇 CORRIGIDO: Agora aponta para a tela do cliente correta */}
+
         <Route path="/agendar" component={ClientBooking} />
         <Route path="/landing" component={Dashboard} />
 
