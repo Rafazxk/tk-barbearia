@@ -11,6 +11,8 @@ import { IClientAppointment } from "../../../tk-barbearia-backend/src/modules/ap
 import { Produto } from "./ClientBooking/types.js";
 import logoTk from "../assets/logo.jpeg";
 
+import { useQueryClient } from "@tanstack/react-query";
+
 interface Barbeiro { id: number; nome: string; foto?: string | null; }
 interface Servico { id: number; nome: string; preco: number; duracaoMinutos: number; }
 interface Categoria { id: string; nome: string; servicos: Servico[]; }
@@ -53,6 +55,8 @@ export default function ClientBooking() {
 
   }
 
+  const queryClient = useQueryClient();
+
   useEffect(() => {
     const timer = setInterval(() => setAgora(new Date()), 60000);
     return () => clearInterval(timer);
@@ -91,50 +95,26 @@ export default function ClientBooking() {
 
 
   const { data: slotsLivresDoBackend = [], isLoading: carregandoHorarios } = useQuery<string[]>({
-    queryKey: ["client-appointments-lookup", selectedDate, selectedBarber?.id],
-    queryFn: async () => {
-      const res = await api.get("/appointments/available", {
-        // Passando ambos os formatos de parâmetro para garantir a leitura do controller
-        params: {
-          date: selectedDate,
-          barberId: selectedBarber?.id,
-          barbeiroId: selectedBarber?.id
-        }
-      });
-      return Array.isArray(res.data) ? res.data : []; // Espera vir ex: ["10:00", "10:30", "11:00"]
-    },
-    enabled: step === 2 && !!selectedDate && !!selectedBarber,
-  });
+  queryKey: ["client-appointments-lookup", selectedDate, selectedBarber?.id],
+  queryFn: async () => {
+    const res = await api.get("/appointments/available", {
+      params: { date: selectedDate, barberId: selectedBarber?.id }
+    });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  enabled: step === 2 && !!selectedDate && !!selectedBarber,
+  staleTime: 0, 
+  refetchOnWindowFocus: true,
+});
 
-  const { data: agendamentosOcupados = [] } = useQuery({
-    queryKey: ["client-appointments-lookup", selectedDate, selectedBarber?.id],
-    queryFn: async () => {
-      const res = await api.get("/appointments/available", {
-        params: { date: selectedDate, barberId: selectedBarber?.id }
-      });
-      return res.data;
-    },
-    enabled: step === 2 && !!selectedDate && !!selectedBarber,
-  });
-
-  const agendamentosDoDia = agendamentosOcupados.filter((appt: any) => {
-    // 1. Proteção: Se não tiver data, ignore esse agendamento
-    if (!appt.dataHora) return false;
-
-    try {
-      // 2. Tenta formatar com segurança
-      const data = format(new Date(appt.dataHora), "yyyy-MM-dd");
-
-      return (
-        data === selectedDate &&
-        appt.barbeiro?.id === selectedBarber?.id
-      );
-    } catch (error) {
-      // 3. Caso o formato da string da data seja maluco, ignore também
-      console.error("Data inválida encontrada:", appt.dataHora);
-      return false;
-    }
-  });
+  const { data: todosOsBloqueios = [] } = useQuery({
+  queryKey: ["schedule-blocks-all"], // Cache global de bloqueios
+  queryFn: async () => {
+    const res = await api.get("/schedule-blocks");
+    return res.data;
+  },
+  enabled: step === 2,
+});
 
 const { data: bloqueiosDoDia = [] } = useQuery({
   queryKey: ["schedule-blocks-lookup", selectedDate],
@@ -143,6 +123,8 @@ const { data: bloqueiosDoDia = [] } = useQuery({
     return res.data;
   },
   enabled: step === 2 && !!selectedDate,
+  staleTime: 0, 
+  refetchOnWindowFocus: true,
 });
 
   const availableSlots = useMemo(() => {
@@ -151,7 +133,7 @@ const { data: bloqueiosDoDia = [] } = useQuery({
   const ehHoje = selectedDate === hojeFormatado;
 
   return slotsLivresDoBackend.filter((horario) => {
-    // A. Filtro de horários passados (seu código atual)
+   
     if (ehHoje) {
       const [h, m] = horario.split(":").map(Number);
       if (h! < agora.getHours() || (h === agora.getHours() && m! <= agora.getMinutes())) return false;
@@ -169,7 +151,7 @@ const { data: bloqueiosDoDia = [] } = useQuery({
       return false;
     });
 
-    return !ehBloqueado; // Só retorna se NÃO estiver bloqueado
+    return !ehBloqueado; 
   });
 }, [slotsLivresDoBackend, selectedDate, bloqueiosDoDia]);
 
@@ -209,6 +191,9 @@ const { data: bloqueiosDoDia = [] } = useQuery({
     },
     onSuccess: () => {
       toast.success("Sucesso!");
+
+      queryClient.invalidateQueries({ queryKey: ["client-appointments-lookup"] });
+
       resetForm();
       setView("home");
     },

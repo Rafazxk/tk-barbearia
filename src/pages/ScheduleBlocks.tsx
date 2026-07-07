@@ -148,7 +148,7 @@ export default function ScheduleBlocks() {
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-foreground text-sm">{bloqueio.descricao}</span>
                       <span className="text-xs bg-secondary text-muted-foreground px-2 py-0.5 rounded border border-border">
-                        {bloqueio.barbeiroNome || "Todos os Barbeiros"}
+                        {bloqueio.barbeiroNome}
                       </span>
                     </div>
 
