@@ -44,7 +44,7 @@ export default function ClientBooking() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const hojeStr = format(new Date(), "yyyy-MM-dd");
   const [agora, setAgora] = useState(new Date());
-
+  const queryClient = useQueryClient();
 
   interface CategoriaProduto {
     id: string | number;
@@ -54,8 +54,6 @@ export default function ClientBooking() {
     estoque: number;
 
   }
-
-  const queryClient = useQueryClient();
 
   useEffect(() => {
     const timer = setInterval(() => setAgora(new Date()), 60000);

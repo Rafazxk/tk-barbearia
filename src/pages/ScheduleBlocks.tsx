@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { CalendarX, Clock, Calendar, Plus, Trash2, AlertCircle, MapPin, X } from "lucide-react";
 import { useBarber } from "@/contexts/BarberContext";
+import { toast } from "sonner";
 
 interface Bloqueio {
   id: number;
@@ -42,18 +43,30 @@ export default function ScheduleBlocks() {
 
   // 📤 Mutation para criar um novo bloqueio
   const createBlockMutation = useMutation({
-    mutationFn: async (payload: any) => api.post("/schedule-blocks", payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["schedule-blocks"] });
-      fecharModal();
-    }
-  });
+  mutationFn: async (payload: any) => api.post("/schedule-blocks", payload),
+  onSuccess: () => {
+    // Invalida a lista de bloqueios
+    queryClient.invalidateQueries({ queryKey: ["schedule-blocks"] });
+    
+    queryClient.invalidateQueries({ 
+        predicate: (query) => query.queryKey[0] === "client-appointments-lookup" 
+    });
+    
+    fecharModal();
+    toast.success("Bloqueio salvo!");
+  }
+});
 
   // ❌ Mutation para deletar um bloqueio
   const deleteBlockMutation = useMutation({
-    mutationFn: async (id: number) => api.delete(`/schedule-blocks/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["schedule-blocks"] })
-  });
+  mutationFn: async (id: number) => api.delete(`/schedule-blocks/${id}`),
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["schedule-blocks"] });
+    
+    // 2. 🔥 TAMBÉM AQUI: Se desbloquear, o cliente precisa ver o horário livre
+    queryClient.invalidateQueries({ queryKey: ["client-appointments-lookup"] });
+  }
+});
 
 
   const handleSalvarBloqueio = (e: React.FormEvent) => {

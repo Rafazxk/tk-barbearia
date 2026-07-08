@@ -20,7 +20,11 @@ import ClientBooking from "@/pages/ClientBooking";
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1, staleTime: 1000 * 30 },
+    queries: { 
+      retry: 1, 
+      staleTime: 1000 * 10,
+      refetchOnWindowFocus: true, 
+    },
   },
 });
 
@@ -123,7 +127,10 @@ function App() {
   }, []);
 
   return (
+
+    
     <QueryClientProvider client={queryClient}>
+      
       <BarberProvider>
         <AppContent />
         <Toaster position="top-right" />

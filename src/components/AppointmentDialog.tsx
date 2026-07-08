@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import React, { useState, useEffect, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api"; 
 import { Button } from "@/components/ui/button";
 import { useBarber } from "@/contexts/BarberContext"; 
 import { Appointment } from "@/pages/Dashboard"; 
 import { format, parseISO, isValid } from "date-fns";
+
 
 interface AppointmentDialogProps {                                         
   open: boolean;
@@ -35,9 +36,19 @@ export function AppointmentDialog({
   isSubmitting,
   selectedDate
 }: AppointmentDialogProps) {
+  const queryClient = useQueryClient();
   const { user } = useBarber();
 
   const hojeStr = format(new Date(), "yyyy-MM-dd");
+
+  const { data: bloqueios = [] } = useQuery({
+    queryKey: ["schedule-blocks"],
+    queryFn: async () => {
+      const res = await api.get("/schedule-blocks");
+      return res.data;
+    },
+    enabled: open, // Só busca quando o modal abrir
+  });
 
   // Estados locais do formulário
   const [clienteNome, setClienteNome] = useState("");
@@ -112,11 +123,24 @@ export function AppointmentDialog({
     }
   }, [appointment, open, selectedDate]);
 
-  if (!open) return null;
 
-  // --- 🛠️ MONTAGEM DOS HORÁRIOS PARA EXIBIÇÃO ---
-  // Os horários livres agora são estritamente o que veio da nossa rota matemática!
-  const opcoesDeHorario = [...slotsDoExpediente];
+  const opcoesDeHorario = useMemo(() => {
+    return slotsDoExpediente.filter((hora) => {
+      // Verifica se a 'hora' atual está em algum bloqueio
+      const ehBloqueado = bloqueios.some((b: any) => {
+        // Bloqueio de dia inteiro
+        if (b.tipo === "data" && b.dataInicio === dataInput) return true;
+        
+        // Bloqueio de horário específico
+        if (b.tipo === "horario" && b.dataInicio === dataInput) {
+          return hora >= b.horaInicio && hora <= b.horaFim;
+        }
+        return false;
+      });
+
+      return !ehBloqueado;
+    });
+  }, [slotsDoExpediente, bloqueios, dataInput]);
   
   // Caso seja uma edição, força a hora atual do agendamento a aparecer na lista se não estiver nela
   if (appointment && horaInput && !opcoesDeHorario.includes(horaInput)) {
@@ -148,6 +172,8 @@ export function AppointmentDialog({
       console.error("Erro ao submeter formulário:", error);
     }
   };
+
+  if (!open) return null;
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
