@@ -57,6 +57,11 @@ export default function ClientBooking() {
 
   useEffect(() => {
     const timer = setInterval(() => setAgora(new Date()), 60000);
+
+    if (bloqueiosDoDia.length > 0) {
+    console.log("Dados dos bloqueios recebidos:", bloqueiosDoDia[0]);
+  }
+
     return () => clearInterval(timer);
   }, []);
 
@@ -131,20 +136,26 @@ const { data: bloqueiosDoDia = [] } = useQuery({
   const ehHoje = selectedDate === hojeFormatado;
 
   return slotsLivresDoBackend.filter((horario) => {
-   
+    // A. Filtro de horários passados
     if (ehHoje) {
       const [h, m] = horario.split(":").map(Number);
-      if (h! < agora.getHours() || (h === agora.getHours() && m! <= agora.getMinutes())) return false;
+      if (h < agora.getHours() || (h === agora.getHours() && m <= agora.getMinutes())) return false;
     }
 
-    // B. NOVO: Filtro de Bloqueios (A MÁGICA ACONTECE AQUI)
+    // B. Filtro de Bloqueios Robusto
     const ehBloqueado = bloqueiosDoDia.some((b: any) => {
+      // Normaliza as chaves (aceita dataInicio OU data_inicio)
+      const dataB = b.dataInicio || b.data_inicio;
+      const horaIni = b.horaInicio || b.hora_inicio;
+      const horaFim = b.horaFim || b.hora_fim;
+      const tipo = b.tipo;
+
       // Bloqueio de dia inteiro
-      if (b.tipo === "data" && b.dataInicio === selectedDate) return true;
+      if (tipo === "data" && dataB === selectedDate) return true;
       
       // Bloqueio de horário específico
-      if (b.tipo === "horario" && b.horaInicio && b.horaFim) {
-        return horario >= b.horaInicio && horario <= b.horaFim;
+      if (tipo === "horario" && dataB === selectedDate && horaIni && horaFim) {
+        return horario >= horaIni && horario <= horaFim;
       }
       return false;
     });

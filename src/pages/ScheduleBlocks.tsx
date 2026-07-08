@@ -45,16 +45,11 @@ export default function ScheduleBlocks() {
   const createBlockMutation = useMutation({
   mutationFn: async (payload: any) => api.post("/schedule-blocks", payload),
   onSuccess: () => {
-    // Invalida a lista de bloqueios
-    queryClient.invalidateQueries({ queryKey: ["schedule-blocks"] });
-    
-    queryClient.invalidateQueries({ 
-        predicate: (query) => query.queryKey[0] === "client-appointments-lookup" 
-    });
-    
-    fecharModal();
-    toast.success("Bloqueio salvo!");
-  }
+  queryClient.invalidateQueries({ queryKey: ["schedule-blocks"] });
+  queryClient.invalidateQueries({ queryKey: ["schedule-blocks-lookup"] }); // <--- Adicione isso!
+  queryClient.invalidateQueries({ queryKey: ["client-appointments-lookup"] });
+  fecharModal();
+  } 
 });
 
   // ❌ Mutation para deletar um bloqueio
