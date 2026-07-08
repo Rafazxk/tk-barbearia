@@ -147,7 +147,7 @@ export default function Dashboard() {
 
   const updateAppt = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: any }) => {
-      const response = await api.put(`/appointments/${id}`, data);
+      const response = await api.patch(`/appointments/${id}`, data);
       return response.data;
     },
     onSuccess: () => {

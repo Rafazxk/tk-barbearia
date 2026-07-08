@@ -6,6 +6,8 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { AppointmentDialog } from "@/components/AppointmentDialog"; // ✅ Importando o modal
 
+
+
 interface Agendamento {
   id: string | number;
   clienteNome: string;
@@ -28,7 +30,8 @@ export default function Appointments() {
   // ✅ NOVOS ESTADOS: Controle do Modal de Criar/Editar
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAppt, setEditingAppt] = useState<Agendamento | null>(null);
-
+ 
+  const [dateStr, setDateStr] = useState(format(new Date(), "yyyy-MM-dd"));
   // Busca dos dados na API
   const { data: agendamentos, isLoading, isError } = useQuery<Agendamento[]>({
     queryKey: ["appointmentsList", dataFiltro],
@@ -309,6 +312,7 @@ export default function Appointments() {
         appointment={editingAppt as any} // Envia o agendamento atual (se houver) para auto-preencher
         onSubmit={handleFormSubmit}
         isSubmitting={createApptMutation.isPending || updateApptMutation.isPending}
+        selectedDate={new Date(dateStr)}
       />
 
     </div>

@@ -1,19 +1,19 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api"; 
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { useBarber } from "@/contexts/BarberContext"; 
-import { Appointment } from "@/pages/Dashboard"; 
+import { useBarber } from "@/contexts/BarberContext";
+import { Appointment } from "@/pages/Dashboard";
 import { format, parseISO, isValid } from "date-fns";
 
 
-interface AppointmentDialogProps {                                         
+interface AppointmentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   appointment: Appointment | null;
   onSubmit: (data: any) => Promise<void>;
   isSubmitting: boolean;
-  selectedDate: Date;       
+  selectedDate: Date;
 }
 
 interface Servico {
@@ -28,11 +28,11 @@ interface Categoria {
   servicos: Servico[];
 }
 
-export function AppointmentDialog({ 
-  open, 
-  onOpenChange, 
-  appointment, 
-  onSubmit, 
+export function AppointmentDialog({
+  open,
+  onOpenChange,
+  appointment,
+  onSubmit,
   isSubmitting,
   selectedDate
 }: AppointmentDialogProps) {
@@ -53,10 +53,10 @@ export function AppointmentDialog({
   // Estados locais do formulário
   const [clienteNome, setClienteNome] = useState("");
   const [clienteTelefone, setClienteTelefone] = useState("");
-  const [dataInput, setDataInput] = useState(""); 
+  const [dataInput, setDataInput] = useState("");
   const [horaInput, setHoraInput] = useState("");
   const [servicoIds, setServicoIds] = useState<number[]>([]);
-
+const [duracao, setDuracao] = useState(30);
   // 📥 BUSCA DE SERVIÇOS
   const { data: categorias = [], isLoading: isLoadingServices } = useQuery<Categoria[]>({
     queryKey: ["categories-list"],
@@ -72,11 +72,11 @@ export function AppointmentDialog({
     queryKey: ["available-slots-dinamicos", dataInput, user?.id],
     queryFn: async () => {
       const response = await api.get("/appointments/available", {
-        params: { 
-           date: dataInput,
-           barberId: user?.id
-          
-          }
+        params: {
+          date: dataInput,
+          barberId: user?.id
+
+        }
       });
       return response.data; // Espera vir do service ex: ["10:00", "10:30", "11:00"]
     },
@@ -89,7 +89,7 @@ export function AppointmentDialog({
     if (appointment && appointment.dataHora) {
       setClienteNome(appointment.clienteNome || "");
       setClienteTelefone(appointment.clienteTelefone || "");
-      
+
       let dataObjeto = parseISO(appointment.dataHora);
       if (!isValid(dataObjeto)) {
         dataObjeto = new Date(appointment.dataHora);
@@ -99,7 +99,7 @@ export function AppointmentDialog({
         const ano = dataObjeto.getFullYear();
         const mes = String(dataObjeto.getMonth() + 1).padStart(2, '0');
         const dia = String(dataObjeto.getDate()).padStart(2, '0');
-        
+
         setDataInput(`${ano}-${mes}-${dia}`);
         setHoraInput(format(dataObjeto, "HH:mm"));
       } else {
@@ -111,10 +111,10 @@ export function AppointmentDialog({
     } else {
       setClienteNome("");
       setClienteTelefone("");
-      
+
       const safeSelectedDate = selectedDate instanceof Date && isValid(selectedDate) ? selectedDate : new Date();
       const currentSelectedStr = format(safeSelectedDate, "yyyy-MM-dd");
-      
+
       const dataInicial = currentSelectedStr < hojeStr ? hojeStr : currentSelectedStr;
 
       setDataInput(dataInicial);
@@ -130,7 +130,7 @@ export function AppointmentDialog({
       const ehBloqueado = bloqueios.some((b: any) => {
         // Bloqueio de dia inteiro
         if (b.tipo === "data" && b.dataInicio === dataInput) return true;
-        
+
         // Bloqueio de horário específico
         if (b.tipo === "horario" && b.dataInicio === dataInput) {
           return hora >= b.horaInicio && hora <= b.horaFim;
@@ -141,7 +141,7 @@ export function AppointmentDialog({
       return !ehBloqueado;
     });
   }, [slotsDoExpediente, bloqueios, dataInput]);
-  
+
   // Caso seja uma edição, força a hora atual do agendamento a aparecer na lista se não estiver nela
   if (appointment && horaInput && !opcoesDeHorario.includes(horaInput)) {
     opcoesDeHorario.push(horaInput);
@@ -155,24 +155,20 @@ export function AppointmentDialog({
   };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!horaInput) return;
+  e.preventDefault();
+  if (!horaInput) return;
 
-    try {
-      const payload = {
-        clienteNome,
-        clienteTelefone,
-        dataHora: `${dataInput}T${horaInput}:00`, 
-        barbeiroId: user?.id, 
-        servicoIds, 
-      };
-
-      await onSubmit(payload);
-    } catch (error) {
-      console.error("Erro ao submeter formulário:", error);
-    }
+  const payload = {
+    clienteNome,
+    clienteTelefone,
+    dataHora: `${dataInput}T${horaInput}:00`, 
+    barbeiroId: user?.id, 
+    servicoIds,
+    duracao, // <--- ADICIONE ISSO
   };
 
+  await onSubmit(payload);
+};
   if (!open) return null;
 
   return (
@@ -221,16 +217,16 @@ export function AppointmentDialog({
               <input
                 type="date"
                 required
-                min={hojeStr} 
+                min={hojeStr}
                 value={dataInput}
                 onChange={(e) => {
                   setDataInput(e.target.value);
-                  setHoraInput(""); 
+                  setHoraInput("");
                 }}
                 className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-amber-500 transition-colors color-scheme-dark"
               />
             </div>
-            
+
             <div className="space-y-1">
               <label className="text-xs font-medium text-zinc-300">Horário Disponível</label>
               {isLoadingSlots ? (
@@ -259,6 +255,20 @@ export function AppointmentDialog({
             </div>
           </div>
 
+
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-zinc-300">Duração (minutos)</label>
+            <input
+              type="number"
+              step="5"
+              min="15"
+              max="180"
+              value={duracao}
+              onChange={(e) => setDuracao(Number(e.target.value))}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-amber-500 transition-colors"
+            />
+          </div>
+
           {/* Seleção de Serviços */}
           <div className="space-y-2">
             <label className="text-xs font-medium text-zinc-300">Selecione os Serviços</label>
@@ -273,7 +283,7 @@ export function AppointmentDialog({
                     <span className="text-[10px] font-bold uppercase tracking-wider text-amber-500/80 block border-b border-zinc-800/40 pb-0.5">
                       {categoria.nome}
                     </span>
-                    
+
                     <div className="space-y-1.5 pl-1">
                       {categoria.servicos.map((servico) => {
                         const numericId = Number(servico.id);
@@ -303,17 +313,17 @@ export function AppointmentDialog({
 
           {/* Botões de Ação */}
           <div className="flex justify-end gap-2 pt-2 border-t border-zinc-900">
-            <Button 
-              type="button" 
-              variant="ghost" 
+            <Button
+              type="button"
+              variant="ghost"
               onClick={() => onOpenChange(false)}
               disabled={isSubmitting}
               className="text-zinc-400 hover:text-zinc-200"
             >
               Cancelar
             </Button>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={isSubmitting || servicoIds.length === 0 || isLoadingServices || opcoesDeHorario.length === 0 || !horaInput}
               className="bg-amber-500 text-zinc-950 hover:bg-amber-400 font-medium"
             >
