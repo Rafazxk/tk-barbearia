@@ -11,23 +11,22 @@ import { AppointmentDialog } from "@/components/AppointmentDialog"; // ✅ Impor
 interface Agendamento {
   id: string | number;
   clienteNome: string;
-  clienteTelefone: string; // ✅ Adicionado para o formulário do modal
+  clienteTelefone: string; 
   dataHora: string;
   totalPreco: number;
-  barbeiro?: { id: number; nome: string }; // ✅ Adicionado o ID para o preenchimento do formulário
-  servicos?: Array<{ id: number; nome: string }>; // ✅ Adicionado o ID para o preenchimento do formulário
+  barbeiro?: { id: number; nome: string }; 
+  servicos?: Array<{ id: number; nome: string }>; 
   status: "confirmado" | "pendente" | "concluido";
 }
 
 export default function Appointments() {
   const queryClient = useQueryClient();
 
-  // Estados de controle dos filtros
+
   const [dataFiltro, setDataFiltro] = useState<string>(() => format(new Date(), "yyyy-MM-dd"));
   const [busca, setBusca] = useState("");
   const [statusFiltro, setStatusFiltro] = useState("todos");
 
-  // ✅ NOVOS ESTADOS: Controle do Modal de Criar/Editar
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAppt, setEditingAppt] = useState<Agendamento | null>(null);
  
@@ -42,6 +41,7 @@ export default function Appointments() {
       return Array.isArray(response.data) ? response.data : [];
     },
     placeholderData: [],
+    
   });
 
   // MUTATION: Excluir Agendamento
@@ -59,7 +59,13 @@ export default function Appointments() {
   // ✅ NOVA MUTATION: Criar Agendamento (Botão Novo)
   const createApptMutation = useMutation({
     mutationFn: async (newAppt: any) => {
-      const response = await api.post("/appointments", newAppt);
+      const payload = {
+      ...newAppt,
+      dataHora: new Date(newAppt.dataHora).toISOString() 
+    };
+
+      const response = await api.post("/appointments", payload);
+
       return response.data;
     },
     onSuccess: () => {
@@ -67,7 +73,20 @@ export default function Appointments() {
       toast.success("Agendamento criado com sucesso!");
       setDialogOpen(false);
     },
-    onError: (error: any) => toast.error(error.response?.data?.error || "Erro ao criar agendamento"),
+    
+    onError: (error: any) => {
+  console.error("Erro completo:", error); // Isso vai aparecer no Eruda que você instalou
+  
+  if (error.response) {
+    // Erro do servidor (ex: 400, 500)
+    toast.error(error.response.data.error || "Erro no servidor");
+  } else if (error.request) {
+    // Erro de rede (não chegou no servidor - AQUI É O CORS OU FALHA DE CONEXÃO)
+    toast.error("Erro de conexão: O servidor não respondeu. Verifique sua rede ou CORS.");
+  } else {
+    toast.error("Erro ao configurar a requisição.");
+  }
+},
   });
 
   const updateApptMutation = useMutation({
