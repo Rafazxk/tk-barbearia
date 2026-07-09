@@ -10,50 +10,39 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [, setLocation] = useLocation();
-  const { loginState } = useBarber(); 
+  const { loginState } = useBarber();
 
   const handleIdentityLogin = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setIsLoading(true);
+    e.preventDefault();
+    setIsLoading(true);
 
-  try {
-    const response = await api.post("/auth/login", {
-      email,
-      password,
-    });
+    try {
+      const response = await api.post("/auth/login", { email, password });
 
-    // 🔍 Log de segurança para verificar o que o Express está respondendo
-    console.log("Login.tsx -> Resposta da API:", response.data);
+      // 1. Log para verificar o que o servidor realmente mandou
+      console.log("Resposta do Login:", response.data);
 
-    // 💡 Captura o objeto mapeando a propriedade correta do seu back-end (barbeiro)
-    const usuarioLogado = response.data.barbeiro || response.data.user || response.data;
+      // 2. Extração segura
+      const { barbeiro, token } = response.data;
 
-    // Verifica se conseguimos capturar o objeto com um id válido
-    if (usuarioLogado && usuarioLogado.id) {
-      
-      // 1. Atualiza o contexto global com os dados do Kleyton
-      loginState(usuarioLogado);
-      
-      toast.success(`Bem-vindo de volta, ${usuarioLogado.nome}!`);
+      // 3. SALVAMENTO OBRIGATÓRIO (É aqui que a mágica acontece)
+      if (token) {
+        localStorage.setItem("@TKBarber:token", token);
+        console.log("Token salvo com sucesso no localStorage!");
+      } else {
+        console.error("ERRO: O servidor não retornou o token!");
+      }
 
-      // 2. Redireciona para o Dashboard administrativo
-      setTimeout(() => {
-        setLocation("/");
-      }, 100);
-
-    } else {
-      console.error("Login.tsx -> Não foi possível extrair um usuário válido de response.data");
-      toast.error("Erro na estrutura de dados do servidor.");
+      // 4. Continua o fluxo normal
+      loginState(barbeiro, token);
+    } catch (error: any) {
+      console.error("Login.tsx -> Erro na requisição:", error);
+      const mensagemErro = error.response?.data?.erro || "Erro ao conectar com o servidor.";
+      toast.error(mensagemErro);
+    } finally {
+      setIsLoading(false);
     }
-
-  } catch (error: any) {
-    console.error("Login.tsx -> Erro na requisição:", error);
-    const mensagemErro = error.response?.data?.erro || "Erro ao conectar com o servidor.";
-    toast.error(mensagemErro);
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
 
   const handleGoogleLogin = () => {
     // Redireciona direto para o fluxo de OAuth do seu back-end
@@ -67,7 +56,7 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-zinc-950 text-zinc-50 px-4">
       <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 p-8 rounded-2xl shadow-xl">
-        
+
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold tracking-tight text-amber-500">TK Barbearia</h1>
           <p className="text-sm text-zinc-400 mt-2">Acesse seu dashboard administrativo</p>

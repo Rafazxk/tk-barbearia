@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 
+
+
 interface User {
   id: number;
   nome: string;
@@ -9,7 +11,7 @@ interface User {
 interface BarberContextType {
   user: User | null;
   isAuthenticated: boolean;
-  loginState: (userData: User) => void;
+  loginState: (userData: User, token?: string) => void;
   logout: () => void;
   loading: boolean;
 }
@@ -19,7 +21,8 @@ const BarberContext = createContext<BarberContextType | undefined>(undefined);
 export function BarberProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-
+  
+  
   useEffect(() => {
     const savedUser = localStorage.getItem("@TKBarber:user");
     
@@ -36,15 +39,14 @@ export function BarberProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
-  const loginState = (userData: User) => {
-    console.log("Contexto -> Executando loginState com os dados:", userData);
-    
-    // 1. Salva no localStorage primeiro
-  localStorage.setItem("@TKBarber:user", JSON.stringify(userData));;
-    
-    // 2. Atualiza o estado do React imediatamente para forçar o re-render
-    setUser(userData);
-  };
+  const loginState = (userData: User, token?: string) => {
+  setUser(userData);
+  localStorage.setItem("@TKBarber:user", JSON.stringify(userData));
+  
+  if (token) {
+    localStorage.setItem("@TKBarber:token", token);
+  }
+};
 
   const logout = () => {
     setUser(null);
