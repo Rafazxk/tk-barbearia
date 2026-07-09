@@ -21,7 +21,7 @@ export default function ScheduleBlocks() {
 
   const { user } = useBarber();
 
-  const [tipoModal, setTipoModal] = useState<"horario" | "data" | null>(null);
+  const [tipoModal, setTipoModal] = useState<"horario" | "data" |null>(null);
 
   // Estados dos formulários
   const [descricao, setDescricao] = useState("");
@@ -89,7 +89,7 @@ export default function ScheduleBlocks() {
     setDataInicio("");
     setHoraInicio("");
     setHoraFim("");
-    setEscopoBloqueio("todos"); // Reseta para o padrão
+    setEscopoBloqueio("todos"); 
   };
 
   // Formata datas do padrão ISO (aaaa-mm-dd) vindo do banco para o padrão pt-BR (dd/mm/aaaa)

@@ -11,7 +11,7 @@ import BarberAccounts from "@/pages/BarberAccounts";
 
 import ClientsList from "@/pages/ClientsList";
 import ServicesList from "@/pages/ServicesList";
-import ProductsList from "@/pages/ProductsList";
+// import ProductsList from "@/pages/ProductsList";
 import ScheduleBlocks from "@/pages/ScheduleBlocks";
 import SettingsLayout from "@/pages/SettingsLayout";
 import Login from "./pages/Login";
@@ -39,7 +39,7 @@ function AdminRouter() {
         <Route path="/agendamentos" component={Appointments} />
         <Route path="/financeiro" component={Financial} />
         <Route path="/clientes" component={ClientsList} />
-        <Route path="/produtos" component={ProductsList} />
+        {/* <Route path="/produtos" component={ProductsList} /> */}
         <Route path="/bloqueios" component={ScheduleBlocks} />
         <Route path="/servicos" component={ServicesList} />
         <Route path="/contas" component={BarberAccounts} />
