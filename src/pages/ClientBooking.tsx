@@ -88,13 +88,13 @@ export default function ClientBooking() {
   });
 
   // Busca de Produtos da API Real 
-  const { data: produtos = [], isLoading: loadingProdutos } = useQuery<CategoriaProduto[]>({
-    queryKey: ["products-list"],
-    queryFn: async () => {
-      const res = await api.get("/products");
-      return res.data;
-    }
-  });
+  // const { data: produtos = [], isLoading: loadingProdutos } = useQuery<CategoriaProduto[]>({
+  //   queryKey: ["products-list"],
+  //   queryFn: async () => {
+  //     const res = await api.get("/products");
+  //     return res.data;
+  //   }
+  // });
 
 
   const { data: slotsLivresDoBackend = [], isLoading: carregandoHorarios } = useQuery<string[]>({
@@ -358,31 +358,6 @@ return (
           </div>
         </div>
 
-        {/* Seção de Produtos */}
-        <div className="w-full max-w-md md:max-w-2xl mx-auto mt-8 p-6 md:p-8 bg-zinc-900/40 rounded-2xl border border-zinc-800/50 backdrop-blur-sm shadow-2xl space-y-4">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-amber-500 flex items-center gap-2 justify-center md:justify-start">
-            <ShoppingBag className="w-4 h-4" /> Produtos em Estoque
-          </h2>
-
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {loadingProdutos ? (
-              <p className="text-xs text-zinc-500 col-span-full py-8 text-center animate-pulse">Carregando produtos...</p>
-            ) : (
-              /* O segredo está aqui: "achatamos" as categorias para pegar apenas a lista de produtos reais */
-              produtos.flatMap(categoria => categoria.produtos || []).map((p) => (
-                <div key={p.id} className="bg-zinc-950/60 border border-zinc-800 p-4 rounded-xl flex flex-col justify-between hover:border-amber-500/30 transition-colors duration-200">
-                  <p className="text-xs md:text-sm font-bold text-zinc-200 line-clamp-2">{p.nome}</p>
-                  <div className="mt-3 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-1">
-                    <span className="text-amber-500 font-bold text-xs md:text-sm">
-                      R$ {Number(p.preco).toFixed(2).replace(".", ",")}
-                    </span>
-                    <span className="text-[10px] md:text-xs text-zinc-500">Qtd: {p.estoque}</span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
 
         {/* Quem Somos */}
         <div className="w-full max-w-md md:max-w-2xl mx-auto my-6 p-6 bg-zinc-900/40 rounded-2xl border border-zinc-800/50 backdrop-blur-sm shadow-2xl">
