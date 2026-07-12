@@ -32,17 +32,24 @@ export default function Appointments() {
  
   const [dateStr, setDateStr] = useState(format(new Date(), "yyyy-MM-dd"));
   // Busca dos dados na API
+
   const { data: agendamentos, isLoading, isError } = useQuery<Agendamento[]>({
-    queryKey: ["appointmentsList", dataFiltro],
-    queryFn: async () => {
-      const response = await api.get("/appointments", {
-        params: { date: dataFiltro }
-      });
-      return Array.isArray(response.data) ? response.data : [];
-    },
-    placeholderData: [],
-    
-  });
+  queryKey: ["appointmentsList", dataFiltro],
+  queryFn: async () => {
+    const response = await api.get("/appointments", {
+      params: { date: dataFiltro }
+    });
+
+    const rawData = Array.isArray(response.data) ? response.data : [];
+
+    // Limpeza profunda: garante que cada agendamento tenha um array de servicos
+    return rawData.map((appt) => ({
+      ...appt,
+      servicos: Array.isArray(appt.servicos) ? appt.servicos : []
+    }));
+  },
+  placeholderData: [],
+});
 
   // MUTATION: Excluir Agendamento
   const deleteMutation = useMutation({

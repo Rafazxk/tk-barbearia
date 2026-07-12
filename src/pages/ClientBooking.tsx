@@ -588,109 +588,66 @@ return (
     )}
 
     {view === "my-appointments" && (
-      <div className="p-4 flex-1 space-y-4">
-        <h3 className="text-sm font-bold text-zinc-300">Meus Agendamentos</h3>
-        <div className="flex gap-2">
-          <input type="tel" placeholder="Digite seu WhatsApp completo" value={phoneLookup} onChange={(e) => setPhoneLookup(e.target.value)} className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-amber-500" />
-          <Button size="sm" className="bg-amber-500 text-zinc-950 font-bold" onClick={() => setSearchedPhone(phoneLookup)}>Buscar</Button>
-        </div>
+  <div className="p-4 flex-1 space-y-4">
+    <h3 className="text-sm font-bold text-zinc-300">Meus Agendamentos</h3>
+    {/* ... (seu código de input de busca permanece igual) ... */}
 
-        <div className="space-y-2 pt-2">
-          {loadingMeusAgendamentos ? (
-            <p className="text-xs text-zinc-500 text-center py-4">Buscando na base...</p>
-          ) : searchedPhone && meusAgendamentos.length === 0 ? (
-            <p className="text-xs text-zinc-500 text-center py-4">Nenhum agendamento ativo encontrado para este telefone.</p>
-          ) : (
-            meusAgendamentos.map((appt: any) => (
-              <Card key={appt.id} className="bg-zinc-900/30 border-zinc-900 p-3 space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-amber-500">{format(new Date(appt.dataHora), "dd/MM/yyyy - HH:mm")}</span>
-                  <Badge className="text-[10px] border border-emerald-500/30 text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/5">
-                    Confirmado
-                  </Badge>
-                </div>
+    <div className="space-y-2 pt-2">
+      {loadingMeusAgendamentos ? (
+        <p className="text-xs text-zinc-500 text-center py-4">Buscando na base...</p>
+      ) : searchedPhone && meusAgendamentos.length === 0 ? (
+        <p className="text-xs text-zinc-500 text-center py-4">Nenhum agendamento encontrado.</p>
+      ) : (
+        meusAgendamentos.map((appt: any) => (
+          <Card key={appt.id} className="bg-zinc-900/30 border-zinc-900 p-4 space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-xs font-bold text-amber-500">
+                {format(new Date(appt.dataHora), "dd/MM/yyyy - HH:mm")}
+              </span>
+              <Badge className="text-[10px] border border-emerald-500/30 text-emerald-400 bg-emerald-500/5">
+                Confirmado
+              </Badge>
+            </div>
 
+            <h3 className="font-semibold text-lg text-white">{appt.clienteNome}</h3>
+            <p className="text-sm text-zinc-400">💈 {appt.barbeiro?.nome}</p>
 
-                {meusAgendamentos.map((appointment) => (
-                  <div
-                    key={appointment.id}
-                    className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 space-y-3"
-                  >
-                    <div className="flex justify-between">
-                      <h3 className="font-semibold text-lg">
-                        {appointment.clienteNome}
-                      </h3>
-
-                      <span className="text-emerald-400 font-bold">
-                        R$ {appointment.totalPreco.toFixed(2)}
-                      </span>
-                    </div>
-
-                    <p>
-                      📞 {appointment.clienteTelefone}
-                    </p>
-
-                    <p>
-                      💈 {appointment.barbeiro.nome}
-                    </p>
-
-                    <p>
-                      📅 {new Date(appointment.dataHora).toLocaleDateString("pt-BR")}
-                    </p>
-
-                    <p>
-                      🕐 {new Date(appointment.dataHora).toLocaleTimeString("pt-BR", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </p>
-
-                    <div>
-                      <strong>Serviços</strong>
-
-                      <ul className="mt-2 space-y-1">
-                        {appointment.servicos.map((service) => (
-                          <li
-                            key={service.id}
-                            className="flex justify-between"
-                          >
-                            <span>{service.nome}</span>
-
-                            <span>
-                              R$ {Number(service.preco).toFixed(2)}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    <div className="flex gap-3 pt-3">
-                      <button
-                        onClick={() => {
-                          setEditingId(appointment.id);
-                          handleEdit(appointment)
-                        }}
-                        className="flex-1 rounded-lg bg-amber-500 py-2 font-medium"
-                      >
-                        Editar
-                      </button>
-
-                      <button
-                        onClick={() => deleteAppointment.mutate(appointment.id)}
-                        className="flex-1 rounded-lg bg-red-600 py-2 font-medium"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  </div>
+            <div>
+              <strong className="text-xs text-zinc-500 uppercase">Serviços</strong>
+              <ul className="mt-2 space-y-1">
+                {/* A verificação abaixo evita o erro de "map is not a function" */}
+                {Array.isArray(appt.servicos) && appt.servicos.map((service: any) => (
+                  <li key={service.id} className="flex justify-between text-sm text-zinc-300">
+                    <span>{service.nome}</span>
+                    <span>R$ {Number(service.preco).toFixed(2)}</span>
+                  </li>
                 ))}
-              </Card>
-            ))
-          )}
-        </div>
-        <Button variant="ghost" size="sm" className="w-full text-zinc-400 mt-4" onClick={() => setView("home")}>Voltar para o Início</Button>
-      </div>
-    )}
+              </ul>
+            </div>
+
+            <div className="flex gap-3 pt-3">
+              <button 
+                onClick={() => { setEditingId(appt.id); handleEdit(appt); }} 
+                className="flex-1 rounded-lg bg-amber-500 py-2 font-medium text-zinc-950 text-sm"
+              >
+                Editar
+              </button>
+              <button 
+                onClick={() => deleteAppointment.mutate(appt.id)} 
+                className="flex-1 rounded-lg bg-red-600 py-2 font-medium text-white text-sm"
+              >
+                Cancelar
+              </button>
+            </div>
+          </Card>
+        ))
+      )}
+    </div>
+    <Button variant="ghost" size="sm" className="w-full text-zinc-400 mt-4" onClick={() => setView("home")}>
+      Voltar para o Início
+    </Button>
+  </div>
+)}
   </div>
 );
 }

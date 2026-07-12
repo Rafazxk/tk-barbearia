@@ -164,7 +164,7 @@ const [duracao, setDuracao] = useState(30);
     dataHora: `${dataInput}T${horaInput}:00`, 
     barbeiroId: user?.id, 
     servicoIds,
-    duracao, // <--- ADICIONE ISSO
+    duracao, 
   };
 
   await onSubmit(payload);
