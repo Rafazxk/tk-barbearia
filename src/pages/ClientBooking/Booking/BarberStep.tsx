@@ -1,15 +1,28 @@
-import { useBooking } from "@/pages/ClientBooking/Booking/context/BookingContext"; // hook customizado
-import { useQuery } from "node_modules/@tanstack/react-query/build/modern/_tsup-dts-rollup";
+import { useBooking } from "@/pages/ClientBooking/Booking/context/BookingContext";
+import { useQuery } from "@tanstack/react-query";
+import { Card } from "@/components/ui/card";
+import { api } from "@/lib/api";
 
 export default function BarberStep() {
-  const { setSelectedBarber, setStep } = useBooking();
-  const { data: barbeiros } = useQuery(...); // Consulta específica do passo
+
+  const { updateData, setStep } = useBooking();
+
+  const { data: barbeiros = [] } = useQuery({
+    queryKey: ["barbeiros"],
+    queryFn: async () => {
+      const response = await api.get("/barbers");
+      return response.data;
+    },
+  });
 
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-bold text-zinc-300">Escolha o Profissional</h3>
-      {barbeiros.map((b) => (
-        <Card onClick={() => { setSelectedBarber(b); setStep(2); }}>
+      {barbeiros.map((b: any) => (
+        <Card onClick={() => {
+          updateData("barber", b);
+          setStep(2);
+        }}>
           {b.nome}
         </Card>
       ))}
