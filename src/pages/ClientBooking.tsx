@@ -71,6 +71,12 @@ export default function ClientBooking() {
     queryKey: ["barbers-list"],
     queryFn: async () => {
       const res = await api.get("/auth/barbers");
+
+      console.log("STATUS:", res.status);
+      console.log("RESPOSTA:", res.data);
+       console.log("É ARRAY?", Array.isArray(res.data));
+
+
       return res.data;
     }
   });
@@ -99,8 +105,12 @@ export default function ClientBooking() {
   queryKey: ["client-appointments-lookup", selectedDate, selectedBarber?.id],
   queryFn: async () => {
     const res = await api.get("/appointments/available", {
+      
+
       params: { date: selectedDate, barberId: selectedBarber?.id }
     });
+    console.log("slotsLivresDoBackend", Array.isArray(slotsLivresDoBackend), slotsLivresDoBackend);
+
     return Array.isArray(res.data) ? res.data : [];
   },
   enabled: step === 2 && !!selectedDate && !!selectedBarber,
@@ -121,6 +131,8 @@ const { data: bloqueiosDoDia = [] } = useQuery({
   queryKey: ["schedule-blocks-lookup", selectedDate],
   queryFn: async () => {
     const res = await api.get("/schedule-blocks");
+    console.log("bloqueiosDoDia", Array.isArray(bloqueiosDoDia), bloqueiosDoDia);
+
     return res.data;
   },
   enabled: step === 2 && !!selectedDate,
@@ -167,6 +179,8 @@ const { data: bloqueiosDoDia = [] } = useQuery({
     queryKey: ["my-appointments-list", searchedPhone],
     queryFn: async () => {
       const res = await api.get(`/appointments/client/${searchedPhone}`);
+      console.log("meusAgendamentos", Array.isArray(meusAgendamentos), meusAgendamentos);
+
       return res.data;
     },
     enabled: searchedPhone.length >= 8,

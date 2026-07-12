@@ -62,6 +62,9 @@ const [duracao, setDuracao] = useState(30);
     queryKey: ["categories-list"],
     queryFn: async () => {
       const res = await api.get("/categories/enriched");
+
+    console.log("categorias", Array.isArray(categorias), categorias);
+
       return res.data;
     },
     enabled: open,
