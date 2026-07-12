@@ -17,6 +17,7 @@ import SettingsLayout from "@/pages/SettingsLayout";
 import Login from "./pages/Login";
 import WhatsappConfig from "./pages/WhatsappConfig";
 import ClientBooking from "@/pages/ClientBooking";
+import { NotificationBanner } from "@/components/NotificationBanner";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -75,11 +76,10 @@ function AdminRouter() {
   );
 }
 
+//roteador
 function AppContent() {
   const { isAuthenticated, loading, user } = useBarber(); 
   const base = (import.meta.env.BASE_URL || "").replace(/\/$/, "");
-
-  console.log("Roteador ->", { isAuthenticated, loading, user });
 
   if (loading) {
     return (
@@ -122,16 +122,35 @@ function AppContent() {
 }
 
 function App() {
+useEffect(() => {
+  //notificatio
+  const subscribeToPush = async () => {
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: 'BPbilkXJB3LyxGuRpOCl96vtUoyxxuHS6ZZJWq3Kr0N5RDfWw6wW9ckHMq3DFDlcZLtevLNnkJe44DV5ZhAMwCI' 
+    });
+    console.log("Inscrição criada:", subscription);
+  } catch (err) {
+    console.error("Erro na inscrição:", err);
+  }
+};
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/service-worker.js')
+      .then((reg) => console.log('Service Worker registrado!', reg))
+      .catch((err) => console.error('Erro ao registrar SW:', err));
+  }
+}, []);
+
   useEffect(() => {
     document.documentElement.classList.add("dark");
   }, []);
 
   return (
-
-    
     <QueryClientProvider client={queryClient}>
-      
       <BarberProvider>
+        <NotificationBanner />
         <AppContent />
         <Toaster position="top-right" />
       </BarberProvider>

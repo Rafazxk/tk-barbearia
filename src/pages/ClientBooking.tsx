@@ -81,8 +81,6 @@ export default function ClientBooking() {
     queryFn: async () => {
       const res = await api.get("/categories/enriched");
 
-      console.log("Categorias e Serviços:", res.data);
-
       return res.data;
     }
   });
@@ -240,7 +238,16 @@ const { data: bloqueiosDoDia = [] } = useQuery({
       prev.some((s) => s.id === servico.id) ? prev.filter((s) => s.id !== servico.id) : [...prev, servico]
     );
   };
+  
+  async function subscribeUser() {
+  const registration = await navigator.serviceWorker.ready;
+  const subscription = await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: 'BPbilkXJB3LyxGuRpOCl96vtUoyxxuHS6ZZJWq3Kr0N5RDfWw6wW9ckHMq3DFDlcZLtevLNnkJe44DV5ZhAMwCI' 
+  });
 
+  await api.post("/api/notifications/subscribe", { subscription });
+}
 
   const handleEdit = (appt: IClientAppointment) => {
     // 1. Preenche os estados com os dados existentes
@@ -421,9 +428,6 @@ return (
             <div className="space-y-4 animate-fade-in w-full max-w-xl mx-auto">
               <h3 className="text-sm font-bold text-zinc-300 text-center sm:text-left">Selecione o profissional</h3>
 
-              {/* 🌐 GRID RESPONSIVO: 
-        - Por padrão em celular pequeno: 2 colunas (grid-cols-2) ou 3 colunas se for bem pequeno
-        - Em telas a partir de tablets (sm): vira 3 colunas com tamanho controlado */}
               <div className="grid grid-cols-3 gap-3 justify-center max-w-md mx-auto sm:max-w-full">
                 {barbeiros.length === 0 ? (
                   <p className="text-xs text-zinc-500 text-center col-span-3 py-4">
@@ -440,10 +444,10 @@ return (
                           setSelectedBarber(b);
                           setStep(2);
                         }}
-                        // 💡 max-w-[110px]: Garante que em telas gigantes o card nunca passe desse tamanho!
+                      
                         className="flex flex-col items-center gap-1.5 w-full max-w-[110px] sm:max-w-[130px] cursor-pointer group mx-auto"
                       >
-                        {/* 📸 CONTAINER DA FOTO */}
+                        {/* CONTAINER DA FOTO */}
                         <div
                           className={`relative w-full aspect-[3/4] rounded-2xl overflow-hidden bg-zinc-800 border-2 transition-all duration-200 
                   ${isSelected
@@ -453,7 +457,7 @@ return (
                         >
                           {b.foto ? (
                             <img
-                              src={`${api.defaults.baseURL?.replace("/api", "")}${b.foto}`}
+                              src={b.foto?.startsWith("http") ? b.foto : `${api.defaults.baseURL?.replace("/api", "")}${b.foto}`}
                               alt={`Foto de ${b.nome}`}
                               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                             />

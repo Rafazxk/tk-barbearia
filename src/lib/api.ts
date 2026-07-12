@@ -5,11 +5,11 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 export const api = axios.create({
   baseURL: API_URL, 
   withCredentials: true, 
+  timeout: 15000,
 });
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('@TKBarber:token');
-  console.log("DEBUG API: Token recuperado do Storage:", token); // <-- VEJA ISSO NO ERUDA
   
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;

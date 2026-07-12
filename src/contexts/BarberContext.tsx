@@ -29,10 +29,8 @@ export function BarberProvider({ children }: { children: React.ReactNode }) {
     if (savedUser && savedUser !== "undefined") {
       try {
         const parsed = JSON.parse(savedUser);
-        console.log("Contexto -> Usuário recuperado do localStorage:", parsed);
         setUser(parsed);
       } catch (error) {
-        console.error("Contexto -> Erro ao ler localStorage:", error);
         localStorage.removeItem("@TKBarber:user");
       }
     }

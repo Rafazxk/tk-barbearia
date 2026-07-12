@@ -208,7 +208,7 @@ const handleMudancaArquivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-foreground">Telefone Comercial</label>
-                    <input type="text" defaultValue="(81) 99999-8888" className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary" />
+                    <input type="text" defaultValue="5581983084006" className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary" />
                   </div>
                 </div>
               </div>
@@ -365,7 +365,7 @@ const handleMudancaArquivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     <img 
   src={
     fotoUrl 
-      ? `${api.defaults.baseURL?.replace("/api", "")}${fotoUrl}` 
+      ? fotoUrl
       : "https://github.com/github.png"
   } 
   alt="Sua foto de perfil" 
