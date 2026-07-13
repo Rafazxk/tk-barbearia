@@ -604,7 +604,10 @@ return (
     {view === "my-appointments" && (
   <div className="p-4 flex-1 space-y-4">
     <h3 className="text-sm font-bold text-zinc-300">Meus Agendamentos</h3>
-    {/* ... (seu código de input de busca permanece igual) ... */}
+    <div className="flex gap-2">
+          <input type="tel" placeholder="Digite seu WhatsApp completo" value={phoneLookup} onChange={(e) => setPhoneLookup(e.target.value)} className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-amber-500" />
+          <Button size="sm" className="bg-amber-500 text-zinc-950 font-bold" onClick={() => setSearchedPhone(phoneLookup)}>Buscar</Button>
+        </div>
 
     <div className="space-y-2 pt-2">
       {loadingMeusAgendamentos ? (
