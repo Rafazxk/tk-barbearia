@@ -1,9 +1,15 @@
 import { Clock, MapPin, Scissors, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Produto } from "./types";
+
+interface Produtos {
+  id: number;
+  nome: string;
+  preco: number;
+  estoque: number;
+}
 
 interface HomeProps {
-  produtos: Produto[];
+  produtos: Produtos[];
   loadingProdutos: boolean;
 
   onBooking: () => void;
@@ -116,7 +122,7 @@ export default function Home({
           </p>
 
           <p className="text-sm text-amber-500 font-medium">
-            WhatsApp: (81) 99999-9999
+            WhatsApp: (81) 98895-3062
           </p>
         </div>
 

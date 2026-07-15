@@ -1,7 +1,7 @@
 import { useState } from "react";
-import Header from "./Header";
-import Home from "./Home";
-import { useProducts } from "./hooks/useProducts";
+import Header from "./components/Header";
+import Home from "./components/Home";
+import { useProducts } from "./Booking/hooks/useProducts";
 
 export default function ClientBooking() {
   const [view, setView] = useState<"home" | "booking" | "appointments">("home");

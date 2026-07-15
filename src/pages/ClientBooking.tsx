@@ -71,12 +71,6 @@ export default function ClientBooking() {
     queryKey: ["barbers-list"],
     queryFn: async () => {
       const res = await api.get("/auth/barbers");
-
-      console.log("STATUS:", res.status);
-      console.log("RESPOSTA:", res.data);
-       console.log("É ARRAY?", Array.isArray(res.data));
-
-
       return res.data;
     }
   });

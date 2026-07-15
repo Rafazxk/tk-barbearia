@@ -13,10 +13,12 @@ console.log("BASE_URL =", api.defaults.baseURL);
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('@TKBarber:token');
-  
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
+
   return config;
 });
 
@@ -27,7 +29,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       // O token expirou ou é inválido
       localStorage.removeItem('@TKBarber:token');
-      // Opcional: window.location.href = '/login'; 
+      window.location.href = '/login'; 
     }
     return Promise.reject(error);
   }
