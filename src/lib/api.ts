@@ -27,10 +27,14 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // O token expirou ou é inválido
       localStorage.removeItem('@TKBarber:token');
-      window.location.href = '/login'; 
+      localStorage.removeItem('@TKBarber:user');
+
+      console.log('401 recebido');
+      // REMOVA ESTA LINHA:
+      // window.location.href = '/login';
     }
+
     return Promise.reject(error);
   }
 );

@@ -72,44 +72,14 @@ export default function Appointments() {
   });
 
   
-function StatusBadge({ appt }: { appt: Agendamento }) {
-  // A lógica de calcularStatus deve estar disponível aqui
-  // (Você pode mover calcularStatus para fora do componente pai ou declará-la aqui)
- 
-
-  const [status, setStatus] = useState(() => calcularStatus(appt));
-
-  useEffect(() => {
+useEffect(() => {
     const interval = setInterval(() => {
-      setStatus(calcularStatus(appt));
-    }, 60000); // Atualiza apenas o status a cada minuto
+      setTick((prev) => prev + 1);
+    }, 60_000); // Atualiza a cada 60 segundos
+    
     return () => clearInterval(interval);
-  }, [appt]);
+  }, []);
 
-  const styles: Record<string, string> = {
-  "em andamento": "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  "concluido": "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  "pendente": "bg-amber-500/10 text-amber-400 border-amber-500/20"
-};
-
-  return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${styles[status]}`}>
-      {status === "em andamento" && <Clock className="h-3 w-3 animate-pulse" />}
-      {status === "concluido" && <CheckCircle2 className="h-3 w-3" />}
-      {status === "pendente" && <Clock className="h-3 w-3" />}
-      {status.charAt(0).toUpperCase() + status.slice(1)}
-    </span>
-  );
-}
-   const calcularStatus = (item: Agendamento) => {
-    const agora = new Date().getTime();
-    const inicio = new Date(item.dataHora).getTime();
-    const fim = inicio + (item.totalDuracao * 60 * 1000);
-    if (agora >= inicio && agora < fim) return "em andamento";
-    if (agora >= fim) return "concluido";
-    return "pendente";
-  };
-  
   // MUTATION: Excluir Agendamento
   const deleteMutation = useMutation({
     mutationFn: async (id: string | number) => {
@@ -206,8 +176,15 @@ function StatusBadge({ appt }: { appt: Agendamento }) {
     }
   };
 
- 
+const calcularStatus = (appt: Agendamento) => {
+    const agora = new Date().getTime();
+    const inicio = new Date(appt.dataHora).getTime();
+    const fim = inicio + (appt.totalDuracao * 60 * 1000);
 
+    if (agora >= inicio && agora < fim) return "em andamento";
+    if (agora >= fim) return "concluido";
+    return "pendente";
+  };
 
 const agendamentosFiltrados = (agendamentos ?? []).filter((item) => {
   if (!item) return false;
