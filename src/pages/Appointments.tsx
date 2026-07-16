@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { AppointmentDialog } from "@/components/AppointmentDialog"; // ✅ Importando o modal
 import { ArrowUpDown } from "lucide-react";
-
+import { useEffect } from "react";
 
 interface Agendamento {
   id: string | number;
@@ -15,7 +15,12 @@ interface Agendamento {
   dataHora: string;
   totalPreco: number;
   barbeiro?: { id: number; nome: string };
-  servicos?: Array<{ id: number; nome: string }>;
+  totalDuracao: number;
+  servicos?: Array<{
+     id: number;
+     nome: string;
+     duracaoMinutos: number;
+    }>;
   status: "confirmado" | "pendente" | "concluido";
 }
 
@@ -25,24 +30,26 @@ export default function Appointments() {
 
   const [dataFiltro, setDataFiltro] = useState<string>(() => format(new Date(), "yyyy-MM-dd"));
   const [busca, setBusca] = useState("");
-  const [statusFiltro, setStatusFiltro] = useState("todos");
+  const [statusFiltro, setStatusFiltro] = useState("pendente");
   const [modoVisualizacao, setModoVisualizacao] = useState<"dia" | "todos">("dia");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAppt, setEditingAppt] = useState<Agendamento | null>(null);
   const [ordem, setOrdem] = useState<"asc" | "desc">("asc");  
   const [dateStr, setDateStr] = useState(format(new Date(), "yyyy-MM-dd"));
+    const [tick, setTick] = useState(0);
 
   // Busca dos dados na API
 
   const { data: agendamentos, isLoading, isError } = useQuery<Agendamento[]>({
     queryKey: ["appointmentsList", modoVisualizacao, dataFiltro, ordem],
 
-    queryFn: async () => {
+  queryFn: async () => {
   const params: Record<string, string> = {
     order: ordem,
   };
 
-  if (modoVisualizacao === "dia") {
+  // Se modoVisualizacao for 'dia', envia a data. Se for 'todos', não envia.
+  if (modoVisualizacao === "dia" && dataFiltro) {
     params.date = dataFiltro;
   }
 
@@ -50,16 +57,27 @@ export default function Appointments() {
     params,
   });
 
+  // Garante que o retorno seja tratado
   const rawData = Array.isArray(response.data) ? response.data : [];
 
   return rawData.map((appt) => ({
     ...appt,
+    // Garante que as datas sejam instâncias da sua classe ou apenas formatadas na exibição
+    dataHora: appt.dataHora, 
     servicos: Array.isArray(appt.servicos) ? appt.servicos : [],
   }));
 },
 
     placeholderData: [],
   });
+
+useEffect(() => {
+    const interval = setInterval(() => {
+      setTick((prev) => prev + 1);
+    }, 60_000); // Atualiza a cada 60 segundos
+    
+    return () => clearInterval(interval);
+  }, []);
 
   // MUTATION: Excluir Agendamento
   const deleteMutation = useMutation({
@@ -157,20 +175,42 @@ export default function Appointments() {
     }
   };
 
-  const agendamentosFiltrados = (agendamentos ?? []).filter((item) => {
-    if (!item) return false;
-    const nomeCliente = item.clienteNome?.toLowerCase() || "";
-    const nomeServicos = item.servicos?.map(s => s?.nome).join(" ").toLowerCase() || "";
-    const nomeBarbeiro = item.barbeiro?.nome?.toLowerCase() || "";
+ 
 
-    const bateBusca = nomeCliente.includes(busca.toLowerCase()) ||
-      nomeServicos.includes(busca.toLowerCase()) ||
-      nomeBarbeiro.includes(busca.toLowerCase());
 
-    const bateStatus = statusFiltro === "todos" || item.status === statusFiltro;
-    return bateBusca && bateStatus;
-  });
+const calcularStatus = (appt: Agendamento) => {
+    const agora = new Date().getTime();
+    const inicio = new Date(appt.dataHora).getTime();
+    const fim = inicio + (appt.totalDuracao * 60 * 1000);
 
+    if (agora >= inicio && agora < fim) return "em andamento";
+    if (agora >= fim) return "concluido";
+    return "pendente";
+  };
+
+const agendamentosFiltrados = (agendamentos ?? []).filter((item) => {
+  if (!item) return false;
+
+  // 1. Calcular o status dinâmico de cada agendamento
+  const statusAtual = calcularStatus(item); // A função que criamos anteriormente
+
+  // 2. Lógica de Busca (mantida)
+  const nomeCliente = item.clienteNome?.toLowerCase() || "";
+  const nomeServicos = item.servicos?.map(s => s?.nome).join(" ").toLowerCase() || "";
+  const nomeBarbeiro = item.barbeiro?.nome?.toLowerCase() || "";
+
+  const bateBusca = nomeCliente.includes(busca.toLowerCase()) ||
+    nomeServicos.includes(busca.toLowerCase()) ||
+    nomeBarbeiro.includes(busca.toLowerCase());
+
+  // 3. Novo Filtro de Status
+  // Se o usuário escolher "todos", mostra tudo. 
+  // Se escolher "pendente", "em andamento" ou "concluido", filtra pelo cálculo dinâmico.
+  const bateStatus = statusFiltro === "todos" || statusAtual === statusFiltro;
+
+  return bateBusca && bateStatus;
+});
+  
   return (
     <div className="space-y-6">
 
@@ -217,7 +257,16 @@ export default function Appointments() {
     <option value="todos">Todos os agendamentos</option>
   </select>
 </div>
-
+ <select
+  value={statusFiltro}
+  onChange={(e) => setStatusFiltro(e.target.value)}
+  className="w-full bg-background border border-border rounded-lg pl-9 pr-4 py-2 text-sm appearance-none cursor-pointer"
+>
+  <option value="todos">Todos os status</option>
+  <option value="pendente">Pendentes</option>
+  <option value="em andamento">Em andamento</option>
+  <option value="concluido">Concluídos</option>
+</select>
 <div className="relative">
   <CalendarIcon className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
   <input
@@ -240,6 +289,7 @@ export default function Appointments() {
     <option value="asc">Mais próximos</option>
     <option value="desc">Mais distantes</option>
   </select>
+
 </div>
       </div>
 
@@ -298,17 +348,29 @@ export default function Appointments() {
                       R$ {item.totalPreco ?? "0.00"}
                     </td>
 
-                    <td className="p-4">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${item.status === "confirmado" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
-                        item.status === "pendente" ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
-                          "bg-zinc-500/10 text-zinc-400 border-zinc-500/20"
-                        }`}>
-                        {item.status === "confirmado" && <CheckCircle2 className="h-3 w-3" />}
-                        {item.status === "pendente" && <Clock className="h-3 w-3" />}
-                        {item.status === "concluido" && <CheckCircle2 className="h-3 w-3" />}
-                        {item.status ? item.status.charAt(0).toUpperCase() + item.status.slice(1) : "Pendente"}
-                      </span>
-                    </td>
+                   <td className="p-4">
+  {(() => {
+    // 1. Calculamos o status dinâmico aqui
+    const status = calcularStatus(item);
+
+    // 2. Definimos as classes baseadas no status calculado
+    const styles = {
+      "em andamento": "bg-blue-500/10 text-blue-400 border-blue-500/20",
+      "concluido": "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+      "pendente": "bg-amber-500/10 text-amber-400 border-amber-500/20"
+    };
+
+    return (
+      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${styles[status]}`}>
+        {status === "em andamento" && <Clock className="h-3 w-3 animate-pulse" />}
+        {status === "concluido" && <CheckCircle2 className="h-3 w-3" />}
+        {status === "pendente" && <Clock className="h-3 w-3" />}
+        
+        {status.charAt(0).toUpperCase() + status.slice(1)}
+      </span>
+    );
+  })()}
+</td>
 
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-2">
@@ -361,4 +423,6 @@ export default function Appointments() {
 
     </div>
   );
+
+  
 }
