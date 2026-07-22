@@ -22,17 +22,14 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Adicione este interceptor de resposta para detectar o 401 e limpar token
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('@TKBarber:token');
-      localStorage.removeItem('@TKBarber:user');
+      localStorage.removeItem("@TKBarber:user");
+      localStorage.removeItem("@TKBarber:token");
 
-      console.log('401 recebido');
-      // REMOVA ESTA LINHA:
-      // window.location.href = '/login';
+      window.location.replace("/login");
     }
 
     return Promise.reject(error);

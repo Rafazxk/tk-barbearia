@@ -47,9 +47,11 @@ export function BarberProvider({ children }: { children: React.ReactNode }) {
 };
 
   const logout = () => {
-    setUser(null);
-    localStorage.removeItem("@TKBarber:user");
-  };
+  setUser(null);
+
+  localStorage.removeItem("@TKBarber:user");
+  localStorage.removeItem("@TKBarber:token");
+};
 
   // Força a reavaliação booleana exata baseada no estado real de 'user'
   const isAuthenticated = !!user;

@@ -20,6 +20,7 @@ interface Servico {
   id: string;
   nome: string;
   preco: number;
+  duracao: number;
 }
 
 interface Categoria {
@@ -87,6 +88,8 @@ const [duracao, setDuracao] = useState(30);
     enabled: open && !!dataInput && !!user?.id,
   });
 
+
+
   // 🔄 Sincroniza o estado inicial (Criação ou Edição)
   useEffect(() => {
     if (appointment && appointment.dataHora) {
@@ -151,11 +154,20 @@ const [duracao, setDuracao] = useState(30);
     opcoesDeHorario.sort();
   }
 
-  const handleServiceChange = (id: number) => {
-    setServicoIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
-  };
+const handleServiceChange = (id: number) => {
+  const novosIds = servicoIds.includes(id)
+    ? servicoIds.filter(item => item !== id)
+    : [...servicoIds, id];
+
+  setServicoIds(novosIds);
+
+  const novaDuracao = categorias
+    .flatMap(c => c.servicos)
+    .filter(s => novosIds.includes(Number(s.id)))
+    .reduce((total, s) => total + s.duracao, 0);
+
+  setDuracao(novaDuracao);
+};
 
   const handleFormSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
@@ -169,10 +181,12 @@ const [duracao, setDuracao] = useState(30);
     servicoIds,
     duracao, 
   };
-
+  console.log("Payload enviado:", payload);
   await onSubmit(payload);
 };
   if (!open) return null;
+
+
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">

@@ -95,6 +95,9 @@ useEffect(() => {
   //  NOVA MUTATION: Criar Agendamento (Botão Novo)
   const createApptMutation = useMutation({
     mutationFn: async (newAppt: any) => {
+      console.log(newAppt.dataHora);
+console.log(new Date(newAppt.dataHora));
+console.log(new Date(newAppt.dataHora).toISOString());
       const payload = {
         ...newAppt,
         dataHora: new Date(newAppt.dataHora).toISOString()

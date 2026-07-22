@@ -130,7 +130,9 @@ export default function Dashboard() {
   });
 
   const createAppt = useMutation({
+    
     mutationFn: async (newAppt: { clienteNome: string; clienteTelefone: string; dataHora: string; barbeiroId: number; servicoIds: number[]; }) => {
+      console.log(newAppt.dataHora);
       const response = await api.post("/appointments", newAppt);
       return response.data;
     },
