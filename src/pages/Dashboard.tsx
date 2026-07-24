@@ -32,7 +32,6 @@ export interface DashboardSummary {
   topService: string;
 }
 
-// 🛡️ Helper seguro para formatar horas sem estourar o React
 function formatSafeTime(dateString: string): string {
   if (!dateString) return "--:--";
   const date = parseISO(dateString);
@@ -59,8 +58,6 @@ function buildWhatsAppLink(appt: Appointment): string {
   );
   return `https://wa.me/${fullPhone}?text=${msg}`;
 }
-
-
 
 function StatCard({ title, value, sub, icon: Icon, loading }: {
   title: string; value: string; sub?: string; icon: React.ElementType; loading: boolean;
@@ -151,6 +148,7 @@ export default function Dashboard() {
     mutationFn: async ({ id, data }: { id: number; data: any }) => {
       const response = await api.patch(`/appointments/${id}`, data);
       return response.data;
+      
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
@@ -158,6 +156,7 @@ export default function Dashboard() {
       toast.success("Agendamento atualizado com sucesso!");
       setDialogOpen(false);
       setEditingAppt(null);
+      
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.error || "Erro ao atualizar agendamento");
@@ -246,7 +245,7 @@ export default function Dashboard() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-medium text-sm text-zinc-200">{appt.clienteNome}</p>
-                        {/* 🛡️ FORMATO SEGURO APLICADO AQUI: */}
+                        
                         <span className="text-xs text-zinc-400">{formatSafeTime(appt.dataHora)}</span>
                         {appt.barbeiro && <span className="text-xs text-zinc-500 hidden sm:inline">· {appt.barbeiro.nome}</span>}
                       </div>
@@ -275,11 +274,17 @@ export default function Dashboard() {
                       <span className="text-sm font-semibold text-amber-500 mr-1">R$ {appt.totalPreco}</span>
                     )}
                     <Button
-                      variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-zinc-200"
-                      onClick={() => { setEditingAppt(appt); setDialogOpen(true); }}
-                    >
-                      <Edit className="h-3.5 w-3.5" />
-                    </Button>
+  variant="ghost"
+  size="icon"
+  className="h-8 w-8 text-zinc-400 hover:text-zinc-200"
+  onClick={() => {
+    console.log("Agendamento da lista:", appt.dataHora);
+    setEditingAppt(appt);
+    setDialogOpen(true);
+  }}
+>
+  <Edit className="h-3.5 w-3.5" />
+</Button>
                     <Button
                       variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-red-400"
                       onClick={() => deleteAppt.mutate({ id: appt.id })}

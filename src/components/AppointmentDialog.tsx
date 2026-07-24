@@ -57,7 +57,9 @@ export function AppointmentDialog({
   const [dataInput, setDataInput] = useState("");
   const [horaInput, setHoraInput] = useState("");
   const [servicoIds, setServicoIds] = useState<number[]>([]);
-const [duracao, setDuracao] = useState(30);
+
+  
+  const [duracao, setDuracao] = useState(30);
   // 📥 BUSCA DE SERVIÇOS
   const { data: categorias = [], isLoading: isLoadingServices } = useQuery<Categoria[]>({
     queryKey: ["categories-list"],
@@ -89,31 +91,28 @@ const [duracao, setDuracao] = useState(30);
   });
 
 
-
-  // 🔄 Sincroniza o estado inicial (Criação ou Edição)
   useEffect(() => {
     if (appointment && appointment.dataHora) {
-      setClienteNome(appointment.clienteNome || "");
-      setClienteTelefone(appointment.clienteTelefone || "");
+      setClienteNome(appointment.clienteNome ?? "");
+      setClienteTelefone(appointment.clienteTelefone ?? "");
 
-      let dataObjeto = parseISO(appointment.dataHora);
-      if (!isValid(dataObjeto)) {
-        dataObjeto = new Date(appointment.dataHora);
-      }
+      const [dataPart, timePart] = appointment.dataHora.split("T");
+      
+      if (dataPart) setDataInput(dataPart);
+      if (timePart) setHoraInput(timePart.substring(0, 5)); // Pega "08:00" cravado
 
-      if (isValid(dataObjeto)) {
-        const ano = dataObjeto.getFullYear();
-        const mes = String(dataObjeto.getMonth() + 1).padStart(2, '0');
-        const dia = String(dataObjeto.getDate()).padStart(2, '0');
+      setServicoIds(
+        appointment.servicos?.map((s) => Number(s.id)) ?? []
+      );
 
-        setDataInput(`${ano}-${mes}-${dia}`);
-        setHoraInput(format(dataObjeto, "HH:mm"));
-      } else {
-        setDataInput(hojeStr);
-        setHoraInput("");
-      }
-
-      setServicoIds(appointment.servicos?.map((s) => Number(s.id)) || []);
+      setDuracao(
+        appointment.totalDuracao ??
+          appointment.servicos?.reduce(
+            (total, s) => total + s.duracaoMinutos,
+            0
+          ) ??
+          30
+      );
     } else {
       setClienteNome("");
       setClienteTelefone("");

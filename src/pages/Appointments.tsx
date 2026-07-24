@@ -95,15 +95,8 @@ useEffect(() => {
   //  NOVA MUTATION: Criar Agendamento (Botão Novo)
   const createApptMutation = useMutation({
     mutationFn: async (newAppt: any) => {
-      console.log(newAppt.dataHora);
-console.log(new Date(newAppt.dataHora));
-console.log(new Date(newAppt.dataHora).toISOString());
-      const payload = {
-        ...newAppt,
-        dataHora: new Date(newAppt.dataHora).toISOString()
-      };
 
-      const response = await api.post("/appointments", payload);
+      const response = await api.post("/appointments", newAppt);
 
       return response.data;
     },
@@ -152,10 +145,20 @@ console.log(new Date(newAppt.dataHora).toISOString());
     }
   };
 
-  const formatarHorario = (dataHoraStr: string) => {
+ const formatarHorario = (dataHoraStr: string) => {
     try {
       if (!dataHoraStr) return "—";
-      const dateObj = dataHoraStr.includes("T") ? parseISO(dataHoraStr) : new Date(dataHoraStr);
+      
+      // Se a string vier no formato ISO com T, pegamos diretamente a parte da hora (HH:mm)
+      // para evitar que o fuso do navegador altere o valor que já está correto no banco.
+      if (dataHoraStr.includes("T")) {
+        const timePart = dataHoraStr.split("T")[1]; // Ex: "08:00:00" ou "08:00:00.000Z"
+        if (timePart) {
+          return timePart.substring(0, 5); // Retorna "08:00" cravado
+        }
+      }
+      
+      const dateObj = new Date(dataHoraStr);
       if (isNaN(dateObj.getTime())) return "—";
       return format(dateObj, "HH:mm");
     } catch (e) {
