@@ -44,9 +44,12 @@ export function parseLocalDate(value: string): Date {
 function formatSafeTime(dateString: string): string {
   if (!dateString) return "--:--";
 
+  // Exemplo de dateString vindo do banco: "2026-06-06T14:00:00.000Z" ou "2026-06-06T14:00:00"
   const [, time] = dateString.split("T");
+  if (!time) return "--:--";
 
-  return time ? time.substring(0, 5) : "--:--";
+  // Pega apenas os primeiros 5 caracteres ("14:00") ignorando segundos, milissegundos e o 'Z'
+  return time.substring(0, 5);
 }
 
 
@@ -100,7 +103,10 @@ export default function Dashboard() {
   const [editingAppt, setEditingAppt] = useState<Appointment | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const dateStr = format(date, "yyyy-MM-dd");
+  const year = date.getFullYear();
+const month = String(date.getMonth() + 1).padStart(2, '0');
+const day = String(date.getDate()).padStart(2, '0');
+const dateStr = `${year}-${month}-${day}`;
 
   // --- QUERIES ---
   const { data: summary, isLoading: summaryLoading } = useQuery<DashboardSummary>({
@@ -218,8 +224,9 @@ export default function Dashboard() {
                 selected={date} 
                 onSelect={(d) => { 
                   if (d) { 
+                    const dataCorrigida = new Date(d.valueOf() - d.getTimezoneOffset() * 60 * 1000);
                     setDate(d); 
-                    setCalOpen(false); 
+                    setCalOpen(false);
                   } 
                 }} 
               />
