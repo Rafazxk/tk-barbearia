@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useBarber } from "@/contexts/BarberContext"; 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { format, parseISO, isValid } from "date-fns";
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Calendar as CalendarIcon, Clock, DollarSign, Scissors, TrendingUp, Trash2, Edit, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -32,15 +32,23 @@ export interface DashboardSummary {
   topService: string;
 }
 
+export function parseLocalDate(value: string): Date {
+  const [date, time = "00:00:00"] = value.split("T");
+
+  const [y, m, d] = date.split("-").map(Number);
+  const [h, min, s = 0] = time.split(":").map(Number);
+
+  return new Date(y, m - 1, d, h, min, s);
+}
+
 function formatSafeTime(dateString: string): string {
   if (!dateString) return "--:--";
-  const date = parseISO(dateString);
-  if (!isValid(date)) {
-    const fallbackDate = new Date(dateString);
-    return isValid(fallbackDate) ? format(fallbackDate, "HH:mm") : "--:--";
-  }
-  return format(date, "HH:mm");
+
+  const [, time] = dateString.split("T");
+
+  return time ? time.substring(0, 5) : "--:--";
 }
+
 
 function buildWhatsAppLink(appt: Appointment): string {
   const phone = appt.clienteTelefone.replace(/\D/g, "");
@@ -48,9 +56,12 @@ function buildWhatsAppLink(appt: Appointment): string {
   
   let formattedDate = "Horário agendado";
   if (appt.dataHora) {
-    const d = parseISO(appt.dataHora);
-    if (isValid(d)) formattedDate = format(d, "dd/MM/yyyy 'às' HH:mm");
+  const d = parseLocalDate(appt.dataHora);
+
+  if (!isNaN(d.getTime())) {
+    formattedDate = format(d, "dd/MM/yyyy 'às' HH:mm");
   }
+}
 
   const servNames = appt.servicos?.map((s) => s.nome).join(", ") ?? "Serviço";
   const msg = encodeURIComponent(
@@ -129,7 +140,6 @@ export default function Dashboard() {
   const createAppt = useMutation({
     
     mutationFn: async (newAppt: { clienteNome: string; clienteTelefone: string; dataHora: string; barbeiroId: number; servicoIds: number[]; }) => {
-      console.log(newAppt.dataHora);
       const response = await api.post("/appointments", newAppt);
       return response.data;
     },
@@ -278,7 +288,6 @@ export default function Dashboard() {
   size="icon"
   className="h-8 w-8 text-zinc-400 hover:text-zinc-200"
   onClick={() => {
-    console.log("Agendamento da lista:", appt.dataHora);
     setEditingAppt(appt);
     setDialogOpen(true);
   }}

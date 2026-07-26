@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api"; // Sua instância configurada do Axios
 import { Search, Phone, Scissors, ArrowUpDown, ChevronLeft, ChevronRight, CalendarDays, DollarSign } from "lucide-react";
+import {  useBarber,  BarberProvider } from "../contexts/BarberContext";
 
 interface Cliente {
   id: string;
@@ -17,32 +18,43 @@ export default function ClientsList() {
   const [busca, setBusca] = useState("");
   const [ordem, setOrdem] = useState<"nome" | "cortes" | "gasto">("nome");
   const [paginaAtual, setPaginaAtual] = useState(1);
-  const itensPorPagina = 8; // Aumentado um pouco para tabelas reais
+  const itensPorPagina = 8; 
 
-  const { data: clientes = [], isLoading } = useQuery<Cliente[]>({
-    queryKey: ["clientes-recorrentes"],
+  const { user } = useBarber();
+  const barberId = user?.id;  
+
+const { data: clientes = [], isLoading, error } = useQuery<Cliente[]>({
+    queryKey: ["clientes-recorrentes", barberId],
     queryFn: async () => {
-      // Aponta exatamente para a nova rota que acabamos de criar no Express
-      const response = await api.get("/appointments/frequent-clients"); 
+      const response = await api.get("/appointments/frequent-clients", {
+        params: { barberId }
+      }); 
       return response.data;
     },
+    enabled: !!barberId, 
   });
 
   // 1. Filtrar por texto digitado (Nome ou Telefone)
-  const clientesFiltrados = clientes.filter((c) =>
-    c.nome.toLowerCase().includes(busca.toLowerCase()) || c.telefone.includes(busca)
+  const clientesFiltrados = (Array.isArray(clientes) ? clientes : []).filter((c) => {
+  const nome = c?.nome ?? "";
+  const telefone = c?.telefone ?? "";
+  return (
+    nome.toLowerCase().includes(busca.toLowerCase()) || 
+    telefone.includes(busca)
   );
+});
 
-  // 2. Ordenar dinamicamente no Frontend de acordo com o seletor
-  const clientesOrdenados = [...clientesFiltrados].sort((a, b) => {
-    if (ordem === "nome") {
-      return a.nome.localeCompare(b.nome);
-    } else if (ordem === "cortes") {
-      return b.totalCortes - a.totalCortes;
-    } else {
-      return b.totalGasto - a.totalGasto; // Maior faturamento primeiro
-    }
-  });
+ const clientesOrdenados = [...clientesFiltrados].sort((a, b) => {
+  if (ordem === "nome") {
+    const nomeA = a?.nome ?? "";
+    const nomeB = b?.nome ?? "";
+    return nomeA.localeCompare(nomeB);
+  } else if (ordem === "cortes") {
+    return (b?.totalCortes ?? 0) - (a?.totalCortes ?? 0);
+  } else {
+    return (b?.totalGasto ?? 0) - (a?.totalGasto ?? 0); // Maior faturamento primeiro
+  }
+});
 
   // 3. Lógica de Paginação
   const totalItens = clientesOrdenados.length;
@@ -132,15 +144,21 @@ export default function ClientsList() {
                     
                     {/* Nome + Avatar */}
                     <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full bg-secondary border border-border flex items-center justify-center text-primary font-bold text-xs shrink-0">
-                          {cliente.nome.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
-                        </div>
-                        <span className="font-medium text-foreground truncate max-w-[180px] sm:max-w-none block">
-                          {cliente.nome}
-                        </span>
-                      </div>
-                    </td>
+  <div className="flex items-center gap-3">
+    <div className="h-8 w-8 rounded-full bg-secondary border border-border flex items-center justify-center text-primary font-bold text-xs shrink-0">
+      {(cliente?.nome ?? "")
+        .split(" ")
+        .filter(Boolean)
+        .map(n => n[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase() || "?"}
+    </div>
+    <span className="font-medium text-foreground truncate max-w-[180px] sm:max-w-none block">
+      {cliente?.nome ?? "Cliente sem nome"}
+    </span>
+  </div>
+</td>
                     
                     {/* Telefone */}
                     <td className="p-4 text-muted-foreground whitespace-nowrap">

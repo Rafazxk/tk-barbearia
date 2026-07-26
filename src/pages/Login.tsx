@@ -19,16 +19,12 @@ export default function Login() {
     try {
       const response = await api.post("/auth/login", { email, password });
 
-      // 1. Log para verificar o que o servidor realmente mandou
-      console.log("Resposta do Login:", response.data);
-
       // 2. Extração segura
       const { barbeiro, token } = response.data;
 
       // 3. SALVAMENTO OBRIGATÓRIO (É aqui que a mágica acontece)
       if (token) {
         localStorage.setItem("@TKBarber:token", token);
-        console.log("Token salvo com sucesso no localStorage!");
       } else {
         console.error("ERRO: O servidor não retornou o token!");
       }

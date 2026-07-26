@@ -69,5 +69,6 @@ export function useBarber() {
   if (!context) {
     throw new Error("useBarber deve ser usado dentro de um BarberProvider");
   }
+  
   return context;
 }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { format, subDays, parseISO } from "date-fns";
+import { format } from "date-fns";
 import { Search, Calendar as CalendarIcon, Filter, Plus, Edit2, Trash2, CheckCircle2, Clock } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -145,46 +145,54 @@ useEffect(() => {
     }
   };
 
- const formatarHorario = (dataHoraStr: string) => {
-    try {
-      if (!dataHoraStr) return "—";
-      
-      // Se a string vier no formato ISO com T, pegamos diretamente a parte da hora (HH:mm)
-      // para evitar que o fuso do navegador altere o valor que já está correto no banco.
-      if (dataHoraStr.includes("T")) {
-        const timePart = dataHoraStr.split("T")[1]; // Ex: "08:00:00" ou "08:00:00.000Z"
-        if (timePart) {
-          return timePart.substring(0, 5); // Retorna "08:00" cravado
-        }
-      }
-      
-      const dateObj = new Date(dataHoraStr);
-      if (isNaN(dateObj.getTime())) return "—";
-      return format(dateObj, "HH:mm");
-    } catch (e) {
-      return "—";
-    }
-  };
+function formatarHorario(dataHoraStr: string) {
+  if (!dataHoraStr) return "—";
+
+  const [, hora] = dataHoraStr.split("T");
+
+  if (!hora) return "—";
+
+  return hora.substring(0, 5);
+}
 
   const formatarData = (dataHoraStr: string) => {
-    try {
-      if (!dataHoraStr) return "—";
+  if (!dataHoraStr) return "—";
 
-      const dateObj = dataHoraStr.includes("T")
-        ? parseISO(dataHoraStr)
-        : new Date(dataHoraStr);
+  const [date] = dataHoraStr.split("T");
 
-      if (isNaN(dateObj.getTime())) return "—";
+  if (!date) return "—";
 
-      return format(dateObj, "dd/MM/yyyy");
-    } catch {
-      return "—";
-    }
-  };
+  const [ano, mes, dia] = date.split("-");
+
+  return `${dia}/${mes}/${ano}`;
+};
+
+function parseLocalDate(value: string): Date {
+  const [datePart, timePart] = value.split("T");
+
+  if (!datePart || !timePart) {
+    throw new Error(`Data inválida: ${value}`);
+  }
+
+  const [year, month, day] = datePart.split("-").map(Number);
+  const [hour, minute, second = 0] = timePart.split(":").map(Number);
+
+  if (
+    year === undefined ||
+    month === undefined ||
+    day === undefined ||
+    hour === undefined ||
+    minute === undefined
+  ) {
+    throw new Error(`Data inválida: ${value}`);
+  }
+
+  return new Date(year, month - 1, day, hour, minute, second);
+}
 
 const calcularStatus = (appt: Agendamento) => {
     const agora = new Date().getTime();
-    const inicio = new Date(appt.dataHora).getTime();
+    const inicio = parseLocalDate(appt.dataHora).getTime();
     const fim = inicio + (appt.totalDuracao * 60 * 1000);
 
     if (agora >= inicio && agora < fim) return "em andamento";

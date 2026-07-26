@@ -4,7 +4,7 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { useBarber } from "@/contexts/BarberContext";
 import { Appointment } from "@/pages/Dashboard";
-import { format, parseISO, isValid } from "date-fns";
+import { format, isValid } from "date-fns";
 
 
 interface AppointmentDialogProps {

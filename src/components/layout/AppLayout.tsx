@@ -40,11 +40,8 @@ export function AppLayout({ children }: AppLayoutProps) {
       const servicosTexto = data.servicos?.length ? data.servicos.join(", ") : "Não informado";
       
       // Converte a data para um formato amigável brasileiro
-      const dataFormatada = new Date(data.dataHora).toLocaleDateString("pt-BR");
-      const horaFormatada = new Date(data.dataHora).toLocaleTimeString("pt-BR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+    const dataFormatada = data.formatDate();
+    const horaFormatada = data.formatTime();
 
       // 🎉 Dispara o toast sofisticado na tela do barbeiro específico
       toast.success("Novo Agendamento Recebido! ✂️", {
