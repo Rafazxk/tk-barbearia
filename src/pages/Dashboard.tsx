@@ -44,12 +44,15 @@ export function parseLocalDate(value: string): Date {
 function formatSafeTime(dateString: string): string {
   if (!dateString) return "--:--";
 
-  // Exemplo de dateString vindo do banco: "2026-06-06T14:00:00.000Z" ou "2026-06-06T14:00:00"
-  const [, time] = dateString.split("T");
-  if (!time) return "--:--";
+  if (dateString.includes("T")) {
+    const timePart = dateString.split("T")[1];
+    if (timePart) {
+      
+      return timePart.substring(0, 5);
+    }
+  }
 
-  // Pega apenas os primeiros 5 caracteres ("14:00") ignorando segundos, milissegundos e o 'Z'
-  return time.substring(0, 5);
+  return "--:--";
 }
 
 
