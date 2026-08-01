@@ -21,7 +21,11 @@ export interface Appointment {
   totalPreco: number; 
   totalDuracao: number; 
   barbeiro?: { id: number; nome: string };
-  servicos?: Array<{ id: number; nome: string; preco: string | number; duracaoMinutos: number }>;
+  servicos?: Array<{ 
+    id: number;
+    nome: string;
+    preco: string | number;
+    duracaoMinutos: number }>;
 }
 
 export interface DashboardSummary {

@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { CalendarX, Clock, Calendar, Plus, Trash2, AlertCircle, MapPin, X } from "lucide-react";
+import { CalendarX, Clock, Calendar, Trash2, X, Pencil } from "lucide-react";
 import { useBarber } from "@/contexts/BarberContext";
-import { toast } from "sonner";
 
 interface Bloqueio {
   id: number;
@@ -21,7 +20,7 @@ export default function ScheduleBlocks() {
 
   const { user } = useBarber();
 
-  const [tipoModal, setTipoModal] = useState<"horario" | "data" |null>(null);
+  const [tipoModal, setTipoModal] = useState<"horario" | "data" | null>(null);
 
   // Estados dos formulários
   const [descricao, setDescricao] = useState("");
@@ -29,7 +28,7 @@ export default function ScheduleBlocks() {
   const [horaInicio, setHoraInicio] = useState("");
   const [horaFim, setHoraFim] = useState("");
   const [barbeiroId, setBarbeiroId] = useState("");
-
+  const [editingBlock, setEditingBlock] = useState<Bloqueio | null>(null);
   const [escopoBloqueio, setEscopoBloqueio] = useState<"todos" | "individual">("todos");
 
   // 📥 Buscar bloqueios do Banco de Dados
@@ -43,45 +42,55 @@ export default function ScheduleBlocks() {
 
   // 📤 Mutation para criar um novo bloqueio
   const createBlockMutation = useMutation({
-  mutationFn: async (payload: any) => api.post("/schedule-blocks", payload),
-  onSuccess: () => {
-  queryClient.invalidateQueries({ queryKey: ["schedule-blocks"] });
-  queryClient.invalidateQueries({ queryKey: ["schedule-blocks-lookup"] }); // <--- Adicione isso!
-  queryClient.invalidateQueries({ queryKey: ["client-appointments-lookup"] });
-  fecharModal();
-  } 
-});
+    mutationFn: async (payload: any) => api.post("/schedule-blocks", payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["schedule-blocks"] });
+      queryClient.invalidateQueries({ queryKey: ["schedule-blocks-lookup"] }); // <--- Adicione isso!
+      queryClient.invalidateQueries({ queryKey: ["client-appointments-lookup"] });
+      fecharModal();
+    }
+  });
 
   // ❌ Mutation para deletar um bloqueio
   const deleteBlockMutation = useMutation({
-  mutationFn: async (id: number) => api.delete(`/schedule-blocks/${id}`),
-  onSuccess: () => {
-    queryClient.invalidateQueries({ queryKey: ["schedule-blocks"] });
-    
-    // 2. 🔥 TAMBÉM AQUI: Se desbloquear, o cliente precisa ver o horário livre
-    queryClient.invalidateQueries({ queryKey: ["client-appointments-lookup"] });
-  }
-});
+    mutationFn: async (id: number) => api.delete(`/schedule-blocks/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["schedule-blocks"] });
+
+      // 2. 🔥 TAMBÉM AQUI: Se desbloquear, o cliente precisa ver o horário livre
+      queryClient.invalidateQueries({ queryKey: ["client-appointments-lookup"] });
+    }
+  });
 
 
   const handleSalvarBloqueio = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!descricao || !dataInicio) return;
+  e.preventDefault();
 
-    // Definição dinâmica do barbeiroId com base na escolha do escopo
-    const finalBarbeiroId = escopoBloqueio === "individual" && user?.id
+  if (!descricao || !dataInicio) return;
+
+  const finalBarbeiroId =
+    escopoBloqueio === "individual" && user?.id
       ? Number(user.id)
       : null;
 
-    createBlockMutation.mutate({
-      tipo: tipoModal,
-      descricao,
-      dataInicio,
-      horaInicio: tipoModal === "horario" ? horaInicio : undefined,
-      horaFim: tipoModal === "horario" ? horaFim : undefined,
-      barbeiroId: finalBarbeiroId
-    });
+  const payload = {
+    tipo: tipoModal,
+    descricao,
+    dataInicio,
+    horaInicio: tipoModal === "horario" ? horaInicio : undefined,
+    horaFim: tipoModal === "horario" ? horaFim : undefined,
+    barbeiroId: finalBarbeiroId,
   };
+
+  if (editingBlock) {
+    updateBlockMutation.mutate({
+      id: editingBlock.id,
+      payload,
+    });
+  } else {
+    createBlockMutation.mutate(payload);
+  }
+};
 
   const fecharModal = () => {
     setTipoModal(null);
@@ -89,7 +98,7 @@ export default function ScheduleBlocks() {
     setDataInicio("");
     setHoraInicio("");
     setHoraFim("");
-    setEscopoBloqueio("todos"); 
+    setEscopoBloqueio("todos");
   };
 
   // Formata datas do padrão ISO (aaaa-mm-dd) vindo do banco para o padrão pt-BR (dd/mm/aaaa)
@@ -99,6 +108,16 @@ export default function ScheduleBlocks() {
     if (partes.length !== 3) return dataStr;
     return `${partes[2]}/${partes[1]}/${partes[0]}`;
   };
+  
+  const updateBlockMutation = useMutation({
+  mutationFn: async ({ id, payload }: any) =>
+    api.patch(`/schedule-blocks/${id}`, payload),
+
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["schedule-blocks"] });
+    fecharModal();
+  }
+});
 
   if (isLoading) return <div className="p-8 text-center text-muted-foreground animate-pulse">Carregando bloqueios da agenda...</div>;
 
@@ -146,8 +165,8 @@ export default function ScheduleBlocks() {
               <div key={bloqueio.id} className="p-4 flex items-center justify-between hover:bg-secondary/10 transition-colors">
                 <div className="flex items-center gap-4">
                   <div className={`h-9 w-9 rounded-lg flex items-center justify-center border ${bloqueio.tipo === "horario"
-                      ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
-                      : "bg-purple-500/10 text-purple-400 border-purple-500/20"
+                    ? "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                    : "bg-purple-500/10 text-purple-400 border-purple-500/20"
                     }`}>
                     {bloqueio.tipo === "horario" ? <Clock className="h-4 w-4" /> : <CalendarX className="h-4 w-4" />}
                   </div>
@@ -170,12 +189,35 @@ export default function ScheduleBlocks() {
                   </div>
                 </div>
 
-                <button
-                  onClick={() => { if (confirm("Remover esta regra de bloqueio?")) deleteBlockMutation.mutate(bloqueio.id); }}
-                  className="p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors cursor-pointer"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+  setEditingBlock(bloqueio);
+
+  setTipoModal(bloqueio.tipo);
+  setDescricao(bloqueio.descricao);
+  setDataInicio(bloqueio.dataInicio.split("T")[0]);
+  setHoraInicio(bloqueio.horaInicio?.slice(0, 5) ?? "");
+  setHoraFim(bloqueio.horaFim?.slice(0, 5) ?? "");
+}}
+                    className="p-2 rounded-lg text-muted-foreground hover:bg-blue-500/10 hover:text-blue-500 transition-colors cursor-pointer"
+                    title="Editar"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (confirm("Remover esta regra de bloqueio?")) {
+                        deleteBlockMutation.mutate(bloqueio.id);
+                      }
+                    }}
+                    className="p-2 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors cursor-pointer"
+                    title="Excluir"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             ))
           ) : (
@@ -187,6 +229,7 @@ export default function ScheduleBlocks() {
       </div>
 
       {/* MODAL DE CADASTRO REAL */}
+
       {tipoModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={fecharModal} />
@@ -199,7 +242,7 @@ export default function ScheduleBlocks() {
                 <X className="h-4 w-4" />
               </button>
 
-              
+
             </div>
 
             <form onSubmit={handleSalvarBloqueio} className="space-y-4">

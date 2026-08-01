@@ -57,10 +57,9 @@ export function AppointmentDialog({
   const [dataInput, setDataInput] = useState("");
   const [horaInput, setHoraInput] = useState("");
   const [servicoIds, setServicoIds] = useState<number[]>([]);
-
-  
   const [duracao, setDuracao] = useState(30);
-  // 📥 BUSCA DE SERVIÇOS
+  const [duracaoManual, setDuracaoManual] = useState(false);
+  
   const { data: categorias = [], isLoading: isLoadingServices } = useQuery<Categoria[]>({
     queryKey: ["categories-list"],
     queryFn: async () => {
@@ -92,6 +91,7 @@ export function AppointmentDialog({
 
 
   useEffect(() => {
+    console.log("Appointment recebido no Modal:", appointment);
     if (appointment && appointment.dataHora) {
       setClienteNome(appointment.clienteNome ?? "");
       setClienteTelefone(appointment.clienteTelefone ?? "");
@@ -99,25 +99,20 @@ export function AppointmentDialog({
       const [dataPart, timePart] = appointment.dataHora.split("T");
       
       if (dataPart) setDataInput(dataPart);
-      if (timePart) setHoraInput(timePart.substring(0, 5)); // Pega "08:00" cravado
+      if (timePart) setHoraInput(timePart.substring(0, 5));
 
       setServicoIds(
         appointment.servicos?.map((s) => Number(s.id)) ?? []
       );
 
-      setDuracao(
-        appointment.totalDuracao ??
-          appointment.servicos?.reduce(
-            (total, s) => total + s.duracaoMinutos,
-            0
-          ) ??
-          30
-      );
+      // Define a duração vinda do banco e trava o modo manual
+      setDuracao(appointment.totalDuracao ?? 30);
+      setDuracaoManual(true);
     } else {
       setClienteNome("");
       setClienteTelefone("");
 
-      const safeSelectedDate = selectedDate instanceof Date && isValid(selectedDate) ? selectedDate : new Date();
+      const safeSelectedDate: Date = selectedDate instanceof Date && isValid(selectedDate) ? selectedDate : new Date();
       const currentSelectedStr = format(safeSelectedDate, "yyyy-MM-dd");
 
       const dataInicial = currentSelectedStr < hojeStr ? hojeStr : currentSelectedStr;
@@ -125,9 +120,10 @@ export function AppointmentDialog({
       setDataInput(dataInicial);
       setHoraInput("");
       setServicoIds([]);
+      setDuracao(30);
+      setDuracaoManual(false); // Libera o cálculo automático para novos agendamentos
     }
   }, [appointment, open, selectedDate]);
-
 
   const opcoesDeHorario = useMemo(() => {
     return slotsDoExpediente.filter((hora) => {
@@ -154,19 +150,24 @@ export function AppointmentDialog({
   }
 
 const handleServiceChange = (id: number) => {
-  const novosIds = servicoIds.includes(id)
-    ? servicoIds.filter(item => item !== id)
-    : [...servicoIds, id];
+    const novosIds = servicoIds.includes(id)
+      ? servicoIds.filter(item => item !== id)
+      : [...servicoIds, id];
 
-  setServicoIds(novosIds);
+    setServicoIds(novosIds);
 
-  const novaDuracao = categorias
-    .flatMap(c => c.servicos)
-    .filter(s => novosIds.includes(Number(s.id)))
-    .reduce((total, s) => total + s.duracao, 0);
+    // Só recalcula automaticamente se o usuário NÃO alterou manualmente
+    if (!duracaoManual) {
+      const novaDuracao = categorias
+        .flatMap(c => c.servicos)
+        .filter(s => novosIds.includes(Number(s.id)))
+        .reduce((total, s) => total + s.duracao, 0);
 
-  setDuracao(novaDuracao);
-};
+      if (novaDuracao > 0) {
+        setDuracao(novaDuracao);
+      }
+    }
+  };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
@@ -280,7 +281,10 @@ const handleServiceChange = (id: number) => {
               min="15"
               max="180"
               value={duracao}
-              onChange={(e) => setDuracao(Number(e.target.value))}
+              onChange={(e) => {
+                setDuracao(Number(e.target.value));
+                setDuracaoManual(true);
+              }}
               className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-amber-500 transition-colors"
             />
           </div>

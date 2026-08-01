@@ -194,7 +194,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       <header className="md:hidden bg-card border-b border-border px-4 py-3 flex items-center justify-between sticky top-0 z-40">
         <div className="flex items-center gap-2">
           <div className="h-7 w-7 rounded bg-primary flex items-center justify-center text-primary-foreground font-bold text-xs">
-            BB
+            TK
           </div>
           <span className="font-bold text-sm tracking-wider text-primary">TK Barbearia</span>
         </div>
@@ -213,7 +213,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         <aside className={`absolute top-0 left-0 bottom-0 w-72 bg-card border-r border-border flex flex-col transition-transform duration-300 ease-in-out transform ${isOpen ? "translate-x-0" : "-translate-x-full"}`}>
           <div className="p-4 flex items-center gap-2 border-b border-border shrink-0">
             <div className="h-7 w-7 rounded bg-primary flex items-center justify-center text-primary-foreground font-bold text-xs">
-              BB
+              TK
             </div>
             <span className="font-bold text-base tracking-wider text-primary">TK Barbearia</span>
           </div>
