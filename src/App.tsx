@@ -131,7 +131,7 @@ useEffect(() => {
       userVisibleOnly: true,
       applicationServerKey: 'BPbilkXJB3LyxGuRpOCl96vtUoyxxuHS6ZZJWq3Kr0N5RDfWw6wW9ckHMq3DFDlcZLtevLNnkJe44DV5ZhAMwCI' 
     });
-    console.log("Inscrição criada:", subscription);
+
   } catch (err) {
     console.error("Erro na inscrição:", err);
   }

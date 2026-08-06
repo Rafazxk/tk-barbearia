@@ -29,7 +29,6 @@ const urlBase64ToUint8Array = (base64String: string) => {
 const handleSubscribe = async () => {
   try {
     const registration = await navigator.serviceWorker.ready;
-console.log("Minha chave VAPID:", key);
     // 2. Converta a string para o formato aceito pelo navegador
     const convertedVapidKey = urlBase64ToUint8Array(key);
 
@@ -42,8 +41,6 @@ console.log("Minha chave VAPID:", key);
       barberId: user?.id,
       subscription: subscription
     });
-    
-    console.log("Inscrição concluída!");
   } catch (err) {
     console.error("Erro na inscrição:", err);
   }

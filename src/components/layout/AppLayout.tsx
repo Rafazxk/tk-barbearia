@@ -88,7 +88,6 @@ export function AppLayout({ children }: AppLayoutProps) {
   ];
 
   const handleLogout = () => {
-    console.log("Executando logout do sistema...");
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     logout();

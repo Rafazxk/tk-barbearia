@@ -65,8 +65,6 @@ export function AppointmentDialog({
     queryFn: async () => {
       const res = await api.get("/categories/enriched");
 
-    console.log("categorias", Array.isArray(categorias), categorias);
-
       return res.data;
     },
     enabled: open,
@@ -91,7 +89,7 @@ export function AppointmentDialog({
 
 
   useEffect(() => {
-    console.log("Appointment recebido no Modal:", appointment);
+
     if (appointment && appointment.dataHora) {
       setClienteNome(appointment.clienteNome ?? "");
       setClienteTelefone(appointment.clienteTelefone ?? "");
@@ -181,7 +179,6 @@ const handleServiceChange = (id: number) => {
     servicoIds,
     duracao, 
   };
-  console.log("Payload enviado:", payload);
   await onSubmit(payload);
 };
   if (!open) return null;

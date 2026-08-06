@@ -8,9 +8,6 @@ export const api = axios.create({
   timeout: 15000,
 });
 
-console.log("API_URL =", API_URL);
-console.log("BASE_URL =", api.defaults.baseURL);
-
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('@TKBarber:token');
 

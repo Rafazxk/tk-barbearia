@@ -80,7 +80,6 @@ export default function ClientBooking() {
 
         params: { date: selectedDate, barberId: selectedBarber?.id }
       });
-      console.log("slotsLivresDoBackend", Array.isArray(slotsLivresDoBackend), slotsLivresDoBackend);
 
       return Array.isArray(res.data) ? res.data : [];
     },
@@ -102,7 +101,6 @@ export default function ClientBooking() {
     queryKey: ["schedule-blocks-lookup", selectedDate],
     queryFn: async () => {
       const res = await api.get("/schedule-blocks");
-      console.log("bloqueiosDoDia", Array.isArray(bloqueiosDoDia), bloqueiosDoDia);
 
       return res.data;
     },
@@ -150,7 +148,6 @@ export default function ClientBooking() {
     queryKey: ["my-appointments-list", searchedPhone],
     queryFn: async () => {
       const res = await api.get(`/appointments/client/${searchedPhone}`);
-      console.log("meusAgendamentos", Array.isArray(meusAgendamentos), meusAgendamentos);
 
       return res.data;
     },
@@ -247,7 +244,7 @@ export default function ClientBooking() {
 
     // 2. Abre a tela de agendamento e pula para o último step (revisão)
     setView("booking");
-    setStep(4);
+    setStep(1);
   };
 
   const handleFinalSubmit = async () => {
@@ -287,14 +284,9 @@ const totalDuracao = selectedServices.reduce((acc, s) => {
   return acc + Number(s.duracao || 0);
 }, 0);
 
-console.log("Serviços selecionados:", selectedServices);
-console.log("Duração total real calculada:", totalDuracao);
-
 const totalServicos = selectedServices.reduce((acc, s) => acc + s.preco, 0);
 const totalProdutos = cartProducts.reduce((acc, item) => acc + (item.produto.preco * item.qtd), 0);
 const valorTotalGeral = totalServicos + totalProdutos;
-
-console.log("Duração total real calculada:", totalDuracao);
 
 const payload = {
   clienteNome,
@@ -308,8 +300,6 @@ const payload = {
     quantidade: Number(p.qtd)
   }))
 };
-
-      console.log("payload enviado", payload)
       upsertAppointment.mutate({ id: editingId || undefined, payload });
 
     } catch (error) {
@@ -329,16 +319,31 @@ const payload = {
     setCartProducts([]);
   };
 
+const calcularStatus = (appt: IClientAppointment) => {
+  const agora = Date.now();
+
+  const inicio = new Date(appt.dataHora).getTime();
+
+  const totalDuracao = appt.servicos.reduce(
+    (acc, s) => acc + s.duracaoMinutos,
+    0
+  );
+
+  const fim = inicio + totalDuracao * 60 * 1000;
+
+  if (agora >= inicio && agora < fim) return "em andamento";
+  if (agora >= fim) return "concluido";
+
+  return "pendente";
+};
+
+const meusAgendamentosPendentes = meusAgendamentos.filter((appt) => {
+  return new Date(appt.dataHora).getTime() > Date.now();
+});
+
   return (
     <div className="w-full min-h-screen flex flex-col justify-center items-center bg-zinc-950 p-4 md:p-8">
-      <header className="p-4 bg-zinc-900/50 border-b border-zinc-900 sticky top-0 backdrop-blur-md z-40 flex justify-between items-center">
 
-        {valorTotalGeral > 0 && (
-          <Badge className="bg-amber-500 text-zinc-950 flex gap-1 font-bold border-none">
-            <ShoppingBag className="w-3 h-3" /> R$ {valorTotalGeral.toFixed(2)}
-          </Badge>
-        )}
-      </header>
 
       {view === "home" && (
         <div className="w-full min-h-screen flex flex-col justify-center items-center bg-zinc-950 p-4 md:p-8">
@@ -398,8 +403,8 @@ const payload = {
             <div className="bg-zinc-900 p-4 rounded-xl border border-zinc-800">
               <h3 className="text-xs font-bold text-zinc-400 mb-2">Horário de Funcionamento</h3>
               <div className="text-xs text-zinc-300 space-y-1">
-                <p className="flex justify-between"><span>Segunda a Sexta:</span> <span>08:00 - 19:00</span></p>
-                <p className="flex justify-between"><span>Sábado:</span> <span>08:00 - 15:00</span></p>
+                <p className="flex justify-between"><span>Segunda a Sábado:</span> <span>09:00 - 20:00</span></p>
+                <p className="flex justify-between"><span>Domingo:</span> <span>08:00 - 12:00</span></p>
               </div>
             </div>
           </div>
@@ -410,7 +415,9 @@ const payload = {
               © {new Date().getFullYear()} TK Barbearia | Todos os direitos reservados
             </p>
             <p className="text-[9px] md:text-[10px] text-zinc-600 mt-1 uppercase tracking-widest font-medium">
-              Desenvolvido por Rafazxk
+              Desenvolvido por Rafael Silva
+              <br />
+              github.com/rafazxk
             </p>
           </div>
         </div>
@@ -603,7 +610,7 @@ const payload = {
             ) : searchedPhone && meusAgendamentos.length === 0 ? (
               <p className="text-xs text-zinc-500 text-center py-4">Nenhum agendamento encontrado.</p>
             ) : (
-              meusAgendamentos.map((appt: any) => (
+              meusAgendamentosPendentes.map((appt: any) => (
                 <Card key={appt.id} className="bg-zinc-900/30 border-zinc-900 p-4 space-y-3">
                   <div className="flex justify-between items-center">
                     <span className="text-xs font-bold text-amber-500">

@@ -23,7 +23,6 @@ export default function BarberAccounts() {
 
   // Função para simular a troca de contexto ou filtro de agenda
   const handleVerAgenda = (nomeBarbeiro: string) => {
-    console.log(`Filtrando sistema para a visão de: ${nomeBarbeiro}`);
     // No futuro, podemos passar o ID via estado global ou query param para a tela de Agendamentos
     setLocation("/agendamentos");
   };
