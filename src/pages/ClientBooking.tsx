@@ -319,23 +319,6 @@ const payload = {
     setCartProducts([]);
   };
 
-const calcularStatus = (appt: IClientAppointment) => {
-  const agora = Date.now();
-
-  const inicio = new Date(appt.dataHora).getTime();
-
-  const totalDuracao = appt.servicos.reduce(
-    (acc, s) => acc + s.duracaoMinutos,
-    0
-  );
-
-  const fim = inicio + totalDuracao * 60 * 1000;
-
-  if (agora >= inicio && agora < fim) return "em andamento";
-  if (agora >= fim) return "concluido";
-
-  return "pendente";
-};
 
 const meusAgendamentosPendentes = meusAgendamentos.filter((appt) => {
   return new Date(appt.dataHora).getTime() > Date.now();
