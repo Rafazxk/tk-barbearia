@@ -123,19 +123,6 @@ function AppContent() {
 
 function App() {
 useEffect(() => {
-  //notificatio
-  const subscribeToPush = async () => {
-  try {
-    const registration = await navigator.serviceWorker.ready;
-    const subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: 'BPbilkXJB3LyxGuRpOCl96vtUoyxxuHS6ZZJWq3Kr0N5RDfWw6wW9ckHMq3DFDlcZLtevLNnkJe44DV5ZhAMwCI' 
-    });
-
-  } catch (err) {
-    console.error("Erro na inscrição:", err);
-  }
-};
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/service-worker.js')
       .then((reg) => console.log('Service Worker registrado!', reg))
@@ -147,6 +134,8 @@ useEffect(() => {
     document.documentElement.classList.add("dark");
   }, []);
 
+
+  
   return (
     <QueryClientProvider client={queryClient}>
       <BarberProvider>
