@@ -281,7 +281,7 @@ export default function ClientBooking() {
 
 // 2. Calcula a duração somando os minutos corretos encontrados na lista oficial
 const totalDuracao = selectedServices.reduce((acc, s) => {
-  return acc + Number(s.duracao || 0);
+  return acc + Number(s.duracao ?? s.duracaoMinutos ?? 0);
 }, 0);
 
 const totalServicos = selectedServices.reduce((acc, s) => acc + s.preco, 0);
