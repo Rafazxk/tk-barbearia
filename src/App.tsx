@@ -123,19 +123,21 @@ function AppContent() {
 
 function App() {
 useEffect(() => {
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/service-worker.js')
-      .then((reg) => console.log('Service Worker registrado!', reg))
-      .catch((err) => console.error('Erro ao registrar SW:', err));
-  }
-}, []);
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/service-worker.js', { scope: '/' })
+        .then((reg) => {
+          console.log('Service Worker registrado com sucesso!', reg);
+          // Força a checagem de atualização imediata do SW
+          reg.update();
+        })
+        .catch((err) => console.error('Erro ao registrar SW:', err));
+    }
+  }, []);
 
   useEffect(() => {
     document.documentElement.classList.add("dark");
   }, []);
 
-
-  
   return (
     <QueryClientProvider client={queryClient}>
       <BarberProvider>

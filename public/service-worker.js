@@ -1,50 +1,66 @@
-self.addEventListener("push", (event) => {
-  console.log("🔥 PUSH RECEBIDO");
+// public/service-worker.js
 
-  let data = {};
+self.addEventListener("install", (event) => {
+  if ('vibrate' in navigator) {
+    navigator.vibrate([500, 200, 500]);
+  }
+  // Força o service worker a assumir o controle imediatamente
+  event.waitUntil(self.skipWaiting());
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
+self.addEventListener("push", (event) => {
+  console.log("🔥 PUSH RECEBIDO NO PWA");
+
+  let data = {
+    title: "Nova Notificação",
+    body: "Você recebeu um novo agendamento."
+  };
 
   try {
-    data = event.data ? event.data.json() : {};
-    console.log("Payload:", data);
+    if (event.data) {
+      const payload = event.data.json();
+      data.title = payload.title || data.title;
+      data.body = payload.body || data.body;
+    }
   } catch (e) {
-    console.error("Erro ao ler payload como JSON", e);
-    data = {
-      title: "Nova Notificação",
-      body: event.data?.text() ?? "Você tem uma nova atualização."
-    };
+    console.error("Erro ao converter payload para JSON:", e);
+    if (event.data) {
+      data.body = event.data.text();
+    }
   }
 
-  const title = data.title || "Agendamento TK";
-  
   const options = {
-    body: data.body || "Novo evento registrado no sistema.",
-    // Removi os ícones fixos (/icon.png) para evitar que a notificação 
-    // falhe silenciosamente caso a imagem não exista na pasta public.
-    // Se quiser colocar depois, certifique-se de que o arquivo existe na pasta public.
-    vibrate: [200, 100, 200], // Vibração padrão ao chegar no celular
-    data: {
-      url: data.url || "/" // URL para redirecionar se o usuário clicar na notificação
-    }
+    body: data.body,
+    icon: undefined, // Mantém sem ícone para evitar bloqueio por 404
+    badge: undefined,
+    vibrate: [300, 100, 300],
+    requireInteraction: true // Mantém a notificação visível até o usuário interagir (ótimo para testes)
   };
 
   event.waitUntil(
-    self.registration.showNotification(title, options)
+    self.registration.showNotification(data.title, options)
+      .then(() => {
+        console.log("✅ Notificação exibida com sucesso pelo SW!");
+      })
+      .catch((err) => {
+        console.error("❌ Erro crítico ao chamar showNotification:", err);
+      })
   );
 });
 
-// Opcional: Adiciona evento de clique na notificação para abrir o app
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
-      // Se já houver uma aba aberta, foca nela
       for (let client of windowClients) {
         if (client.url && "focus" in client) {
           return client.focus();
         }
       }
-      // Se não houver, abre uma nova janela na URL principal
       if (clients.openWindow) {
         return clients.openWindow("/");
       }
