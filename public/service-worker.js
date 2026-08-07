@@ -1,25 +1,53 @@
-// public/service-worker.js
-self.addEventListener('push', (event) => {
+self.addEventListener("push", (event) => {
+  console.log("🔥 PUSH RECEBIDO");
+
   let data = {};
-  
+
   try {
-    // Tenta ler como JSON
-    data = event.data.json();
+    data = event.data ? event.data.json() : {};
+    console.log("Payload:", data);
   } catch (e) {
-    // Se falhar (como no teste do DevTools), usa o texto puro
+    console.error("Erro ao ler payload como JSON", e);
     data = {
-      title: "Notificação de Teste",
-      body: event.data ? event.data.text() : "Você recebeu uma nova notificação!"
+      title: "Nova Notificação",
+      body: event.data?.text() ?? "Você tem uma nova atualização."
     };
   }
 
+  const title = data.title || "Agendamento TK";
+  
   const options = {
-    body: data.body || "Sem conteúdo adicional",
-    icon: '/icon.png', 
-    badge: '/badge.png'
+    body: data.body || "Novo evento registrado no sistema.",
+    // Removi os ícones fixos (/icon.png) para evitar que a notificação 
+    // falhe silenciosamente caso a imagem não exista na pasta public.
+    // Se quiser colocar depois, certifique-se de que o arquivo existe na pasta public.
+    vibrate: [200, 100, 200], // Vibração padrão ao chegar no celular
+    data: {
+      url: data.url || "/" // URL para redirecionar se o usuário clicar na notificação
+    }
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.title || "Atenção!", options)
+    self.registration.showNotification(title, options)
+  );
+});
+
+// Opcional: Adiciona evento de clique na notificação para abrir o app
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
+      // Se já houver uma aba aberta, foca nela
+      for (let client of windowClients) {
+        if (client.url && "focus" in client) {
+          return client.focus();
+        }
+      }
+      // Se não houver, abre uma nova janela na URL principal
+      if (clients.openWindow) {
+        return clients.openWindow("/");
+      }
+    })
   );
 });
