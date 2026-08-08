@@ -6,8 +6,9 @@ export interface Produto {
 }
 
 export interface Barbeiro {
-    id: number;
+    id: number | string;
     nome: string;
+    foto?: string;
 }
 
 export interface Servico {

@@ -2,10 +2,17 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useBarber } from "@/contexts/BarberContext";
-import { Save, CalendarDays, CheckCircle2, Edit2, X, Bell } from "lucide-react";
+import { Save, CalendarDays, CalendarCheck, MessageSquare, Volume2, CheckCircle2, Edit2, X, Bell, Loader2 } from "lucide-react";
 
 interface SettingsLayoutProps {
   abaInicial: "barbearia" | "perfil" | "preferencias" | "seguranca" | "politicas";
+}
+
+interface Preferencias {
+  whatsappLembretes: boolean;
+  notificacoesNovoAgendamento: boolean;
+  somNotificacao: boolean;
+  aprovacaoAutomatica: boolean;
 }
 
 interface DiaConfig {
@@ -27,7 +34,35 @@ export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [mostrarSucesso, setMostrarSucesso] = useState(false);
   const [isEditandoGrade, setIsEditandoGrade] = useState(false);
+  const [isUploadingFoto, setIsUploadingFoto] = useState(false);
   const barbeiroIdDestino = user?.role === "admin" ? null : user?.id;
+
+  // 1️⃣ ESTADO DE PREFERÊNCIAS (Inicia lendo do localStorage se existir)
+  const [preferencias, setPreferencias] = useState<Preferencias>(() => {
+    const salvas = localStorage.getItem("@TKBarber:preferences");
+    if (salvas) {
+      try {
+        return JSON.parse(salvas);
+      } catch (e) {
+        console.error("Erro ao carregar preferências:", e);
+      }
+    }
+    return {
+      whatsappLembretes: true,
+      notificacoesNovoAgendamento: true,
+      somNotificacao: true,
+      aprovacaoAutomatica: false,
+    };
+  });
+
+  // Função para alternar o checkbox e salvar imediatamente no localStorage
+  const handleTogglePreferencias = (chave: keyof Preferencias) => {
+    setPreferencias((prev) => {
+      const novas = { ...prev, [chave]: !prev[chave] };
+      localStorage.setItem("@TKBarber:preferences", JSON.stringify(novas));
+      return novas;
+    });
+  };
 
   const [nomeBarbeiro, setNomeBarbeiro] = useState<string>(() => {
     const usuarioSalvo = localStorage.getItem("@TKBarber:user");
@@ -83,6 +118,7 @@ export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
     }
   }, [serverData]);
 
+  // UPLOAD DA FOTO
   const handleMudancaArquivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const arquivo = e.target.files?.[0];
     if (!arquivo) return;
@@ -91,8 +127,8 @@ export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
     formData.append("avatar", arquivo);
 
     try {
+      setIsUploadingFoto(true);
       const res = await api.post("/auth/upload-avatar", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
         withCredentials: true
       });
 
@@ -107,12 +143,17 @@ export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
         localStorage.setItem("@TKBarber:user", JSON.stringify(usuarioObj));
       }
 
-      alert("Foto de perfil atualizada!");
+      setMostrarSucesso(true);
+      setTimeout(() => setMostrarSucesso(false), 3000);
     } catch (error) {
       console.error("Erro ao subir imagem:", error);
+      alert("Erro ao salvar a foto de perfil em produção. Verifique o servidor.");
+    } finally {
+      setIsUploadingFoto(false);
     }
   };
 
+  // MUTATION HORÁRIOS
   const updateHoursMutation = useMutation({
     mutationFn: async (dadosSemanais: DiaConfig[]) => {
       return api.put("/business-hours", {
@@ -128,18 +169,46 @@ export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
     }
   });
 
+  // MUTATION PERFIL
+  const updateProfileMutation = useMutation({
+    mutationFn: async (nome: string) => {
+      return api.put("/auth/update-profile", { nome }, { withCredentials: true });
+    },
+    onSuccess: () => {
+      const usuarioSalvo = localStorage.getItem("@TKBarber:user");
+      if (usuarioSalvo) {
+        const usuarioObj = JSON.parse(usuarioSalvo);
+        usuarioObj.nome = nomeBarbeiro;
+        localStorage.setItem("@TKBarber:user", JSON.stringify(usuarioObj));
+      }
+      setMostrarSucesso(true);
+      setTimeout(() => setMostrarSucesso(false), 3000);
+    },
+    onError: (error) => {
+      console.error("Erro ao salvar perfil:", error);
+      alert("Erro ao salvar alterações do perfil.");
+    }
+  });
+
   const handleHorarioChange = (index: number, campo: keyof DiaConfig, valor: any) => {
     const novosDados = [...configs];
     novosDados[index] = { ...novosDados[index], [campo]: valor };
     setConfigs(novosDados);
   };
 
+  // SUBMIT UNIFICADO VIA BOTÃO PRINCIPAL
   const handleSalvarConfig = (e: React.FormEvent) => {
     e.preventDefault();
     if (abaInicial === "barbearia") {
       updateHoursMutation.mutate(configs);
+    } else if (abaInicial === "perfil") {
+      updateProfileMutation.mutate(nomeBarbeiro);
     } else {
-      alert("Configurações salvas com sucesso!");
+      // Para preferências, salvar no localStorage já acontece a cada clique,
+      // mas mantemos o feedback de sucesso ao clicar no botão "Salvar Alterações"
+      localStorage.setItem("@TKBarber:preferences", JSON.stringify(preferencias));
+      setMostrarSucesso(true);
+      setTimeout(() => setMostrarSucesso(false), 3000);
     }
   };
 
@@ -147,6 +216,8 @@ export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
     if (!horaStr) return padrao;
     return horaStr.slice(0, 5);
   };
+
+  const isSaving = updateHoursMutation.isPending || updateProfileMutation.isPending;
 
   return (
     <div className="space-y-6 w-full max-w-4xl mx-auto px-2 sm:px-4">
@@ -160,7 +231,7 @@ export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
 
       {mostrarSucesso && (
         <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-3 rounded-lg text-sm flex items-center gap-2 animate-in fade-in duration-200">
-          <CheckCircle2 className="h-4 w-4 shrink-0" /> Configurações salvas no banco de dados!
+          <CheckCircle2 className="h-4 w-4 shrink-0" /> Configurações salvas com sucesso!
         </div>
       )}
 
@@ -184,7 +255,7 @@ export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-foreground">Telefone Comercial</label>
-                    <input type="text" defaultValue="5581983084006" className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary" />
+                    <input type="text" defaultValue="" className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary" />
                   </div>
                 </div>
               </div>
@@ -231,8 +302,6 @@ export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
                   <div className="border border-border/80 rounded-xl overflow-hidden divide-y divide-border bg-background/20 shadow-inner">
                     {configs.map((config, index) => (
                       <div key={config.diaSemana} className={`p-3.5 grid grid-cols-1 md:grid-cols-6 gap-3 items-center transition-all ${!config.trabalha ? "bg-zinc-950/20 opacity-50" : ""}`}>
-
-                        {/* Nome do dia + Checkbox */}
                         <div className="flex items-center gap-2.5">
                           <input
                             type="checkbox"
@@ -244,7 +313,6 @@ export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
                           <span className="font-semibold text-sm text-foreground">{config.diaNome}</span>
                         </div>
 
-                        {/* Abertura */}
                         <div className="flex flex-col">
                           {isEditandoGrade ? (
                             <div className="space-y-1">
@@ -264,7 +332,6 @@ export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
                           )}
                         </div>
 
-                        {/* Início do Almoço */}
                         <div className="flex flex-col">
                           {isEditandoGrade ? (
                             <div className="space-y-1">
@@ -284,7 +351,6 @@ export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
                           )}
                         </div>
 
-                        {/* Fim do Almoço */}
                         <div className="flex flex-col">
                           {isEditandoGrade ? (
                             <div className="space-y-1">
@@ -304,7 +370,6 @@ export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
                           )}
                         </div>
 
-                        {/* Fechamento */}
                         <div className="flex flex-col">
                           {isEditandoGrade ? (
                             <div className="space-y-1">
@@ -324,7 +389,6 @@ export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
                           )}
                         </div>
 
-                        {/* Intervalo */}
                         <div className="flex flex-col">
                           {isEditandoGrade ? (
                             <div className="space-y-1">
@@ -348,7 +412,6 @@ export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
                             </span>
                           )}
                         </div>
-
                       </div>
                     ))}
                   </div>
@@ -369,7 +432,7 @@ export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
               <div className="flex items-center gap-4 sm:gap-6 bg-zinc-900/30 p-4 rounded-xl border border-zinc-800/50">
                 <div
                   className="relative group cursor-pointer w-16 h-16 flex-shrink-0"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => !isUploadingFoto && fileInputRef.current?.click()}
                   title="Clique para alterar sua foto de perfil"
                 >
                   <img
@@ -377,8 +440,12 @@ export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
                     alt="Sua foto de perfil"
                     className="w-full h-full rounded-full object-cover border-2 border-amber-500/30 p-0.5 group-hover:opacity-75 transition-all"
                   />
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                    <span className="text-[10px] text-white font-medium">Trocar</span>
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                    {isUploadingFoto ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
+                    ) : (
+                      <span className="text-[10px] text-white font-medium">Trocar</span>
+                    )}
                   </div>
                 </div>
 
@@ -404,47 +471,106 @@ export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
                   className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
                 />
               </div>
-
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      await api.put("/auth/update-profile", { nome: nomeBarbeiro }, { withCredentials: true });
-                      const usuarioSalvo = localStorage.getItem("@TKBarber:user");
-                      if (usuarioSalvo) {
-                        const usuarioObj = JSON.parse(usuarioSalvo);
-                        usuarioObj.nome = nomeBarbeiro;
-                        localStorage.setItem("@TKBarber:user", JSON.stringify(usuarioObj));
-                      }
-                      alert("Alterações salvas com sucesso!");
-                    } catch (error) {
-                      console.error("Erro ao salvar perfil:", error);
-                      alert("Erro ao salvar alterações.");
-                    }
-                  }}
-                  className="w-full sm:w-auto bg-amber-500 text-zinc-950 font-bold px-4 py-2 text-xs rounded-lg hover:bg-amber-400 transition-all cursor-pointer"
-                >
-                  Salvar Alterações
-                </button>
-              </div>
             </div>
           )}
 
-          {/* 🎛️ PREFERÊNCIAS */}
+          {/* 🎛️ PREFERÊNCIAS (AGORA CONECTADO AO ESTADO E LOCALSTORAGE) */}
           {abaInicial === "preferencias" && (
-            <div className="space-y-4">
+            <div className="space-y-6">
               <div>
                 <h3 className="text-base font-bold text-foreground">Preferências do Sistema</h3>
-                <p className="text-xs text-muted-foreground">Personalize as notificações.</p>
+                <p className="text-xs text-muted-foreground">
+                  Personalize como você recebe alertas e como o sistema se comporta.
+                </p>
               </div>
+
               <hr className="border-border/60" />
-              <label className="flex items-start gap-3 p-3 bg-background/50 border border-border rounded-lg cursor-pointer">
-                <input type="checkbox" defaultChecked className="mt-1 accent-primary shrink-0" />
-                <span className="text-sm font-semibold text-foreground flex items-center gap-1.5">
-                  <Bell className="h-3.5 w-3.5 text-primary shrink-0" /> Enviar lembretes via WhatsApp
-                </span>
-              </label>
+
+              {/* SEÇÃO 1: NOTIFICAÇÕES */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Notificações & Lembretes
+                </h4>
+
+                {/* Lembretes WhatsApp */}
+                <label className="flex items-start gap-3 p-3 bg-background/50 border border-border rounded-lg cursor-pointer hover:bg-accent/40 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={preferencias.whatsappLembretes}
+                    onChange={() => handleTogglePreferencias("whatsappLembretes")}
+                    className="mt-1 accent-primary shrink-0 cursor-pointer"
+                  />
+                  <div className="space-y-0.5">
+                    <span className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                      <MessageSquare className="h-4 w-4 text-primary shrink-0" /> Lembretes via WhatsApp
+                    </span>
+                    <p className="text-xs text-muted-foreground">
+                      Enviar mensagem automática para o cliente 2 horas antes do agendamento.
+                    </p>
+                  </div>
+                </label>
+
+                {/* Alerta de Novo Agendamento */}
+                <label className="flex items-start gap-3 p-3 bg-background/50 border border-border rounded-lg cursor-pointer hover:bg-accent/40 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={preferencias.notificacoesNovoAgendamento}
+                    onChange={() => handleTogglePreferencias("notificacoesNovoAgendamento")}
+                    className="mt-1 accent-primary shrink-0 cursor-pointer"
+                  />
+                  <div className="space-y-0.5">
+                    <span className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                      <Bell className="h-4 w-4 text-primary shrink-0" /> Notificações de novos agendamentos
+                    </span>
+                    <p className="text-xs text-muted-foreground">
+                      Receber aviso no painel e no navegador sempre que um cliente marcar um horário.
+                    </p>
+                  </div>
+                </label>
+
+                {/* Alerta Sonoro */}
+                <label className="flex items-start gap-3 p-3 bg-background/50 border border-border rounded-lg cursor-pointer hover:bg-accent/40 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={preferencias.somNotificacao}
+                    onChange={() => handleTogglePreferencias("somNotificacao")}
+                    className="mt-1 accent-primary shrink-0 cursor-pointer"
+                  />
+                  <div className="space-y-0.5">
+                    <span className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                      <Volume2 className="h-4 w-4 text-primary shrink-0" /> Som de notificação
+                    </span>
+                    <p className="text-xs text-muted-foreground">
+                      Tocar um sinal sonoro ao receber um novo agendamento na tela.
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              {/* SEÇÃO 2: REGRAS DA AGENDA */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Regras de Agendamento
+                </h4>
+
+                {/* Confirmação Automática */}
+                <label className="flex items-start gap-3 p-3 bg-background/50 border border-border rounded-lg cursor-pointer hover:bg-accent/40 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={preferencias.aprovacaoAutomatica}
+                    onChange={() => handleTogglePreferencias("aprovacaoAutomatica")}
+                    className="mt-1 accent-primary shrink-0 cursor-pointer"
+                  />
+                  <div className="space-y-0.5">
+                    <span className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                      <CalendarCheck className="h-4 w-4 text-primary shrink-0" /> Aprovação automática
+                    </span>
+                    <p className="text-xs text-muted-foreground">
+                      Confirmar novos agendamentos automaticamente sem necessidade de aprovação manual.
+                    </p>
+                  </div>
+                </label>
+              </div>
             </div>
           )}
 
@@ -479,11 +605,11 @@ export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
           <div className="pt-4 border-t border-border flex justify-end">
             <button
               type="submit"
-              disabled={(abaInicial === "barbearia" && !isEditandoGrade) || updateHoursMutation.isPending}
+              disabled={(abaInicial === "barbearia" && !isEditandoGrade) || isSaving}
               className="w-full sm:w-auto flex items-center justify-center gap-2 bg-primary text-primary-foreground font-semibold px-5 py-2.5 rounded-lg text-sm hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer shadow-md"
             >
-              <Save className="h-4 w-4" />
-              {abaInicial === "barbearia" && updateHoursMutation.isPending ? "Salvando..." : "Salvar Alterações"}
+              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {isSaving ? "Salvando..." : "Salvar Alterações"}
             </button>
           </div>
 

@@ -1,9 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 
-
-
 interface User {
   id: number;
+  barbeiroId?: number;
   nome: string;
   role: string;
 }

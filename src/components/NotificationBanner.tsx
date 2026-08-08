@@ -120,7 +120,7 @@ const handleSubscribe = async () => {
         <button onClick={requestPermission} className="bg-amber-500 text-black text-xs font-bold px-3 py-1.5 rounded-lg">
           Ativar
         </button>
-      </div>
+      </div>0
     </div>
   );
 }

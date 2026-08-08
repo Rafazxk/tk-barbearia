@@ -7,15 +7,11 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import Dashboard from "@/pages/Dashboard";
 import Appointments from "@/pages/Appointments";
 import Financial from "@/pages/Financial";
-import BarberAccounts from "@/pages/BarberAccounts";
-
 import ClientsList from "@/pages/ClientsList";
 import ServicesList from "@/pages/ServicesList";
-// import ProductsList from "@/pages/ProductsList";
 import ScheduleBlocks from "@/pages/ScheduleBlocks";
 import SettingsLayout from "@/pages/SettingsLayout";
 import Login from "./pages/Login";
-import WhatsappConfig from "./pages/WhatsappConfig";
 import ClientBooking from "@/pages/ClientBooking";
 import { NotificationBanner } from "@/components/NotificationBanner";
 
@@ -43,8 +39,7 @@ function AdminRouter() {
         {/* <Route path="/produtos" component={ProductsList} /> */}
         <Route path="/bloqueios" component={ScheduleBlocks} />
         <Route path="/servicos" component={ServicesList} />
-        <Route path="/contas" component={BarberAccounts} />
-        <Route path="/whatsapp" component={WhatsappConfig} />
+
   
 
         <Route path="/configuracoes/barbearia">

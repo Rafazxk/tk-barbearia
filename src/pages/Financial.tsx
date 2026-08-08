@@ -3,8 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { DollarSign, Download, TrendingUp, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { format, startOfMonth } from "date-fns";
+import { useBarber } from "@/contexts/BarberContext"; // 👈 1. Importado o contexto do usuário
 
 export default function Financial() {
+  const { user } = useBarber(); // 👈 2. Obtém o usuário logado
+
   const [dataInicio, setDataInicio] = useState<string>(() => format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [dataFim, setDataFim] = useState<string>(() => format(new Date(), "yyyy-MM-dd"));
   const [filtroAplicado, setFiltroAplicado] = useState({ inicio: dataInicio, fim: dataFim });
@@ -15,18 +18,27 @@ export default function Financial() {
   const [exportFim, setExportFim] = useState(dataFim);
   const [valorMinimo, setValorMinimo] = useState("");
 
+  // 🛡️ Se for barbeiro comum, restringe pelo ID dele. Se for admin, envia vazio para ver tudo.
+  const barberParam = user?.role === "barber" && user?.id ? user.id : undefined;
+
   // Resumo dos cards superiores
   const { data: resumo, isLoading: resumoLoading } = useQuery({
-    queryKey: ["financialSummary"],
-    queryFn: async () => (await api.get("/financial/summary", { params: { barberId: "" } })).data
+    queryKey: ["financialSummary", user?.id],
+    queryFn: async () => (await api.get("/financial/summary", { params: { barberId: barberParam } })).data,
+    enabled: !!user,
   });
 
-  // Query para buscar os recebimentos baseados no período selecionado
+  // Query para buscar os recebimentos baseados no período selecionado e no barbeiro logado
   const { data: recebimentosData, isLoading: recebimentosLoading } = useQuery({
-    queryKey: ["financialRecebimentos", filtroAplicado],
+    queryKey: ["financialRecebimentos", filtroAplicado, user?.id],
     queryFn: async () => (await api.get("/financial/recebimentos", { 
-      params: { startDate: filtroAplicado.inicio, endDate: filtroAplicado.fim } 
-    })).data
+      params: { 
+        startDate: filtroAplicado.inicio, 
+        endDate: filtroAplicado.fim,
+        barberId: barberParam // 👈 3. Repassando o filtro para os recebimentos também
+      } 
+    })).data,
+    enabled: !!user,
   });
 
   const handleFiltrar = () => {
@@ -47,7 +59,8 @@ export default function Financial() {
         params: { 
           startDate: exportInicio, 
           endDate: exportFim,
-          minValor: valorMinimo || undefined 
+          minValor: valorMinimo || undefined,
+          barberId: barberParam // 👈 Garante que o relatório exportado também respeite o filtro do usuário
         },
         responseType: "blob"
       });

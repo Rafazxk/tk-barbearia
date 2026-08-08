@@ -1,4 +1,5 @@
 import { ReactNode, useState, useEffect } from "react";
+import { Scissors, Package, CheckCircle2, Loader2 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { io } from "socket.io-client";
 import { toast } from "sonner";
@@ -71,8 +72,6 @@ export function AppLayout({ children }: AppLayoutProps) {
     { name: "Painel", href: "/", icon: LayoutDashboard },
     { name: "Agendamentos", href: "/agendamentos", icon: Calendar },
     { name: "Financeiro", href: "/financeiro", icon: DollarSign },
-    { name: "WhatsApp", href: "/whatsapp", icon: MessageSquare },
-    { name: "Contas", href: "/contas", icon: Users },
     { name: "Clientes", href: "/clientes", icon: Users },
     { name: "Serviços", href: "/servicos", icon: Briefcase },
     { name: "Produtos", href: "/produtos", icon: ShoppingBag },
