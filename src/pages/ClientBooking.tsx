@@ -8,17 +8,23 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { IClientAppointment } from "../../../tk-barbearia-backend/src/modules/appointments/repositories/IClienteRepository.js";
-import { Produto } from "./ClientBooking/types.js";
 import logoTk from "../assets/logo.jpeg";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ptBR } from "date-fns/locale/pt-BR";
+
 
 interface Barbeiro { id: number; nome: string; foto?: string | null; }
 interface Servico { id: number; nome: string; preco: number; duracaoMinutos: number; duracao?: number; }
 interface Categoria { id: string; nome: string; servicos: Servico[]; }
 interface CategoriaProduto { id: number; nome: string; preco: number; estoque: number; }
-
+interface Produto {
+  id: number | string;
+  nome: string;
+  preco?: number;
+  valor?: number;
+  precoVenda?: number;
+  estoque?: number;
+}
 export default function ClientBooking() {
   const [view, setView] = useState<"home" | "booking" | "my-appointments">("home");
   const [phoneLookup, setPhoneLookup] = useState("");
@@ -86,14 +92,27 @@ export default function ClientBooking() {
     }
   });
 
-  // Busca de Produtos da API Real 
-  // const { data: produtos = [], isLoading: loadingProdutos } = useQuery<CategoriaProduto[]>({
-  //   queryKey: ["products-list"],
-  //   queryFn: async () => {
-  //     const res = await api.get("/products");
-  //     return res.data;
-  //   }
-  // });
+const { data: produtos = [], isLoading: loadingProdutos } = useQuery<Produto[]>({
+    queryKey: ["products-list-vitrine"],
+    queryFn: async () => {
+      const res = await api.get("/products");
+      const data = res.data;
+
+      // Se a API retornar categorias contendo produtos dentro
+      if (Array.isArray(data)) {
+        const produtosPlanos: Produto[] = [];
+        data.forEach((item: any) => {
+          if (Array.isArray(item.produtos)) {
+            produtosPlanos.push(...item.produtos);
+          } else if (item.nome && (item.preco !== undefined || item.valor !== undefined || item.precoVenda !== undefined)) {
+            produtosPlanos.push(item);
+          }
+        });
+        return produtosPlanos.length > 0 ? produtosPlanos : data;
+      }
+      return [];
+    }
+  });
 
 
   const { data: slotsLivresDoBackend = [], isLoading: carregandoHorarios } = useQuery<string[]>({
@@ -434,6 +453,60 @@ export default function ClientBooking() {
             </p>
           </div>
 
+      <div className="space-y-4 bg-zinc-900/30 border border-zinc-800/60 p-4 md:p-6 rounded-2xl">
+  <div className="flex items-center justify-between">
+    <h3 className="text-sm font-bold text-white flex items-center gap-2 uppercase tracking-wide">
+      <ShoppingBag className="w-4 h-4 text-amber-500" /> Nossos Produtos
+    </h3>
+    <span className="text-xs text-zinc-500">{produtos.length} itens</span>
+  </div>
+
+  {loadingProdutos ? (
+    <div className="flex justify-center py-8">
+      <Loader2 className="w-6 h-6 animate-spin text-amber-500" />
+    </div>
+  ) : produtos.length === 0 ? (
+    <p className="text-xs text-zinc-500 text-center py-6">Nenhum produto cadastrado no momento.</p>
+  ) : (
+    /* max-h-60 com overflow-y-auto cria uma barra de rolagem se houver muitos produtos */
+    <div className="max-h-60 overflow-y-auto pr-1 grid grid-cols-3 sm:grid-cols-4 gap-2">
+      {produtos.map((prod: any) => {
+        const precoReal = Number(prod.preco ?? prod.valor ?? prod.precoVenda ?? 0);
+        const imagemUrl = prod.imagemUrl || prod.foto || prod.img;
+
+        return (
+          <div
+            key={prod.id || Math.random()}
+            className="bg-zinc-900/80 border border-zinc-800 p-2 rounded-lg flex flex-col items-center text-center space-y-1.5"
+          >
+            {/* Imagem do Produto Centralizada e Menor */}
+            <div className="w-full h-16 bg-zinc-950/60 rounded-md overflow-hidden flex items-center justify-center p-1">
+              {imagemUrl ? (
+                <img
+                  src={imagemUrl}
+                  alt={prod.nome}
+                  className="max-w-full max-h-full object-contain mx-auto"
+                />
+              ) : (
+                <ShoppingBag className="w-4 h-4 text-zinc-600" />
+              )}
+            </div>
+
+            {/* Informações do Produto Compactas */}
+            <div className="w-full space-y-0.5">
+              <p className="text-[10px] font-semibold text-zinc-200 truncate w-full" title={prod.nome}>
+                {prod.nome || "Sem nome"}
+              </p>
+              <p className="text-[10px] text-amber-500 font-bold">
+                R$ {precoReal.toFixed(2)}
+              </p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  )}
+</div>
           {/* Localização e Contatos */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-3 flex flex-col justify-center text-center md:text-left">

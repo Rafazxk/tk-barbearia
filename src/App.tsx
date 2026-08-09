@@ -12,6 +12,7 @@ import ServicesList from "@/pages/ServicesList";
 import ScheduleBlocks from "@/pages/ScheduleBlocks";
 import SettingsLayout from "@/pages/SettingsLayout";
 import Login from "./pages/Login";
+import ProductsList from "@/pages/ProductsList";
 import ClientBooking from "@/pages/ClientBooking";
 import { NotificationBanner } from "@/components/NotificationBanner";
 
@@ -36,7 +37,7 @@ function AdminRouter() {
         <Route path="/agendamentos" component={Appointments} />
         <Route path="/financeiro" component={Financial} />
         <Route path="/clientes" component={ClientsList} />
-        {/* <Route path="/produtos" component={ProductsList} /> */}
+        <Route path="/produtos" component={ProductsList} />
         <Route path="/bloqueios" component={ScheduleBlocks} />
         <Route path="/servicos" component={ServicesList} />
 
