@@ -115,18 +115,15 @@ const { data: produtos = [], isLoading: loadingProdutos } = useQuery<Produto[]>(
   });
 
 
-  const { data: slotsLivresDoBackend = [], isLoading: carregandoHorarios } = useQuery<string[]>({
+  const { data: slotsLivresDoBackend = [] } = useQuery<string[]>({
     queryKey: ["client-appointments-lookup", selectedDate, selectedBarber?.id],
     queryFn: async () => {
       const res = await api.get("/appointments/available", {
-
-
         params: { date: selectedDate, barberId: selectedBarber?.id }
       });
-
       return Array.isArray(res.data) ? res.data : [];
     },
-    enabled: step === 2 && !!selectedDate && !!selectedBarber,
+    enabled: step === 3 && !!selectedDate && !!selectedBarber,
     staleTime: 0,
     refetchOnWindowFocus: true,
   });
@@ -170,6 +167,27 @@ const { data: produtos = [], isLoading: loadingProdutos } = useQuery<Produto[]>(
       return true;
     });
   }, [slotsLivresDoBackend, selectedDate]);
+
+
+
+const horarioFechamentoLimite = "19:00";
+const duracaoTotalMinutos = selectedServices.reduce((acc, s) => acc + (Number(s.duracao) || 30), 0);
+
+const slotsFiltradosPorDuracao = availableSlots.filter((horario) => {
+  // Se não tem serviço selecionado, exibe todos ou bloqueia
+  if (duracaoTotalMinutos === 0) return true;
+
+  // Converte o horário do slot (ex: "18:30") para minutos totais desde a meia-noite
+  const [horas, minutos] = horario.split(":").map(Number);
+  const inicioEmMinutos = horas * 60 + minutos;
+
+  // Converte o horário de fechamento para minutos totais
+  const [fechamentoHoras, fechamentoMinutos] = horarioFechamentoLimite.split(":").map(Number);
+  const fechamentoEmMinutos = fechamentoHoras * 60 + fechamentoMinutos;
+
+  // O horário é válido se o término (Início + Duração) não passar do fechamento
+  return (inicioEmMinutos + duracaoTotalMinutos) <= fechamentoEmMinutos;
+});
 
 
   const { data: meusAgendamentos = [], isLoading: loadingMeusAgendamentos } = useQuery<IClientAppointment[]>({
@@ -544,7 +562,6 @@ const { data: produtos = [], isLoading: loadingProdutos } = useQuery<Produto[]>(
         </div>
       )}
 
-      {/* VIEW: BOOKING */}
       {view === "booking" && (
         <div className="w-full max-w-md md:max-w-2xl p-4 flex-1 flex flex-col justify-between bg-zinc-950">
           <div className="space-y-4">
@@ -560,19 +577,19 @@ const { data: produtos = [], isLoading: loadingProdutos } = useQuery<Produto[]>(
                 className={`cursor-pointer ${selectedBarber ? "hover:underline text-amber-500" : "opacity-40 cursor-not-allowed"}`}
                 onClick={() => selectedBarber && setStep(2)}
               >
-                2. Horário
+                2. Serviços
               </span>
 
               <span
-                className={`cursor-pointer ${selectedBarber && selectedDate && selectedTime ? "hover:underline text-amber-500" : "opacity-40 cursor-not-allowed"}`}
-                onClick={() => selectedBarber && selectedDate && selectedTime && setStep(3)}
+                className={`cursor-pointer ${selectedBarber && selectedServices.length > 0 ? "hover:underline text-amber-500" : "opacity-40 cursor-not-allowed"}`}
+                onClick={() => selectedBarber && selectedServices.length > 0 && setStep(3)}
               >
-                3. Serviços
+                3. Horário
               </span>
 
               <span
-                className={`cursor-pointer ${selectedBarber && selectedDate && selectedTime && selectedServices.length > 0 ? "hover:underline text-amber-500" : "opacity-40 cursor-not-allowed"}`}
-                onClick={() => selectedBarber && selectedDate && selectedTime && selectedServices.length > 0 && setStep(4)}
+                className={`cursor-pointer ${selectedBarber && selectedServices.length > 0 && selectedDate && selectedTime ? "hover:underline text-amber-500" : "opacity-40 cursor-not-allowed"}`}
+                onClick={() => selectedBarber && selectedServices.length > 0 && selectedDate && selectedTime && setStep(4)}
               >
                 4. Confirmar
               </span>
@@ -603,10 +620,11 @@ const { data: produtos = [], isLoading: loadingProdutos } = useQuery<Produto[]>(
                           className="flex flex-col items-center gap-1.5 w-full max-w-[110px] sm:max-w-[130px] cursor-pointer group mx-auto"
                         >
                           <div
-                            className={`relative w-full aspect-[3/4] rounded-2xl overflow-hidden bg-zinc-800 border-2 transition-all duration-200 ${isSelected
+                            className={`relative w-full aspect-[3/4] rounded-2xl overflow-hidden bg-zinc-800 border-2 transition-all duration-200 ${
+                              isSelected
                                 ? "border-amber-500 shadow-lg shadow-amber-500/10 scale-[1.02]"
                                 : "border-zinc-800 group-hover:border-zinc-700"
-                              }`}
+                            }`}
                           >
                             {b.foto ? (
                               <img
@@ -626,8 +644,9 @@ const { data: produtos = [], isLoading: loadingProdutos } = useQuery<Produto[]>(
                           </div>
 
                           <p
-                            className={`text-[11px] font-medium text-center truncate w-full transition-colors px-0.5 ${isSelected ? "text-amber-500 font-bold" : "text-zinc-300 group-hover:text-zinc-100"
-                              }`}
+                            className={`text-[11px] font-medium text-center truncate w-full transition-colors px-0.5 ${
+                              isSelected ? "text-amber-500 font-bold" : "text-zinc-300 group-hover:text-zinc-100"
+                            }`}
                           >
                             {b.nome}
                           </p>
@@ -639,175 +658,7 @@ const { data: produtos = [], isLoading: loadingProdutos } = useQuery<Produto[]>(
               </div>
             )}
 
-            {step === 2 && (
-              <div className="space-y-4">
-                <h3 className="text-sm font-bold text-zinc-300">Selecione Data e Horário</h3>
-
-                {/* ESTRUTURA DO CALENDÁRIO ESTILIZADO */}
-                <div className="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-4 space-y-3">
-                  {/* Cabeçalho do Calendário: Mês/Ano e Navegação */}
-                  <div className="flex items-center justify-between pb-2 border-b border-zinc-800/60">
-                    <div className="flex items-center gap-2">
-                      <CalendarIcon className="w-4 h-4 text-amber-500" />
-                      <span className="text-sm font-semibold text-zinc-200 capitalize">
-                        {currentMonth.toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))
-                        }
-                        // Desabilita voltar para meses anteriores ao atual
-                        disabled={
-                          currentMonth.getFullYear() === new Date().getFullYear() &&
-                          currentMonth.getMonth() <= new Date().getMonth()
-                        }
-                        className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
-                      >
-                        <ChevronLeft className="w-4 h-4" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))
-                        }
-                        className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
-                      >
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Dias da Semana (Dom, Seg, Ter...) */}
-                  <div className="grid grid-cols-7 text-center text-[11px] font-bold text-zinc-500 uppercase tracking-wider">
-                    <span>Dom</span>
-                    <span>Seg</span>
-                    <span>Ter</span>
-                    <span>Qua</span>
-                    <span>Qui</span>
-                    <span>Sex</span>
-                    <span>Sáb</span>
-                  </div>
-
-                  {/* Grid de Dias do Mês */}
-                  <div className="grid grid-cols-7 gap-1">
-                    {(() => {
-                      const ano = currentMonth.getFullYear();
-                      const mes = currentMonth.getMonth();
-
-                      const primeiroDiaSemana = new Date(ano, mes, 1).getDay();
-                      const totalDiasNoMes = new Date(ano, mes + 1, 0).getDate();
-
-                      const hoje = new Date();
-                      hoje.setHours(0, 0, 0, 0);
-
-                      const celulas = [];
-
-                      // Preenche os espaços em branco antes do primeiro dia do mês
-                      for (let i = 0; i < primeiroDiaSemana; i++) {
-                        celulas.push(<div key={`vazio-${i}`} className="h-10" />);
-                      }
-
-                      // Renderiza os dias do mês
-                      for (let dia = 1; dia <= totalDiasNoMes; dia++) {
-                        const dataObjeto = new Date(ano, mes, dia);
-                        dataObjeto.setHours(0, 0, 0, 0);
-
-                        // Formato ISO local YYYY-MM-DD
-                        const dateStr = `${ano}-${String(mes + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
-
-                        const isPassado = dataObjeto < hoje;
-                        const isSelected = selectedDate === dateStr;
-                        const isHoje = dataObjeto.getTime() === hoje.getTime();
-
-                        celulas.push(
-                          <button
-                            key={dateStr}
-                            type="button"
-                            disabled={isPassado}
-                            onClick={() => {
-                              setSelectedDate(dateStr);
-                              setSelectedTime("");
-                            }}
-                            className={`h-10 w-full rounded-xl flex flex-col items-center justify-center text-xs transition-all relative ${isPassado
-                                ? "text-zinc-600 cursor-not-allowed opacity-40"
-                                : isSelected
-                                  ? "bg-amber-500 text-zinc-950 font-bold shadow-md shadow-amber-500/20"
-                                  : "text-zinc-200 hover:bg-zinc-800/80 hover:text-white"
-                              }`}
-                          >
-                            <span>{dia}</span>
-
-                            {/* Marcador discreto de "Hoje" */}
-                            {isHoje && !isSelected && (
-                              <span className="w-1 h-1 rounded-full bg-amber-500 absolute bottom-1" />
-                            )}
-                          </button>
-                        );
-                      }
-
-                      return celulas;
-                    })()}
-                  </div>
-                </div>
-
-                {/* SELEÇÃO DE HORÁRIOS */}
-                {selectedDate && (
-                  <div className="space-y-2 pt-2">
-                    <label className="text-xs text-zinc-400">
-                      Horários Livres para {selectedDate.split("-").reverse().join("/")}
-                    </label>
-                    {(() => {
-                      const currentFormattedTime = selectedTime ? selectedTime.substring(0, 5) : "";
-                      const slots = Array.isArray(availableSlots) ? [...availableSlots] : [];
-
-                      if (currentFormattedTime && !slots.includes(currentFormattedTime)) {
-                        slots.push(currentFormattedTime);
-                        slots.sort();
-                      }
-
-                      if (slots.length === 0) {
-                        return (
-                          <div className="p-4 bg-red-500/10 text-red-400 text-xs text-center font-medium rounded-xl border border-red-500/20">
-                            Horários esgotados para este dia. Escolha outra data no calendário.
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <div className="grid grid-cols-4 gap-2">
-                          {slots.map((h) => {
-                            const isSelected = currentFormattedTime === h.substring(0, 5);
-
-                            return (
-                              <Button
-                                key={h}
-                                variant={isSelected ? "default" : "outline"}
-                                className={`text-xs h-10 transition-colors ${isSelected
-                                    ? "bg-amber-500 text-zinc-950 font-bold border-amber-500 hover:bg-amber-400"
-                                    : "border-zinc-800 text-zinc-300 hover:bg-zinc-800"
-                                  }`}
-                                onClick={() => {
-                                  setSelectedTime(h);
-                                  setStep(3);
-                                }}
-                              >
-                                {h}
-                              </Button>
-                            );
-                          })}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
-              </div>
-            )}
-            {step === 3 && (
+{step === 2 && (
               <div className="space-y-4">
                 <h3 className="text-sm font-bold text-zinc-300">Escolha um ou mais Serviços</h3>
                 <div className="space-y-4 max-h-[50vh] overflow-y-auto subtle-scrollbar pr-1">
@@ -821,7 +672,6 @@ const { data: produtos = [], isLoading: loadingProdutos } = useQuery<Produto[]>(
                         </span>
                         <div className="space-y-1.5">
                           {cat.servicos?.map((s) => {
-                            // COMPARAÇÃO SEGURA: Converte ambos os IDs para Number
                             const isChecked = selectedServices.some(
                               (item) => Number(item.id) === Number(s.id)
                             );
@@ -829,17 +679,18 @@ const { data: produtos = [], isLoading: loadingProdutos } = useQuery<Produto[]>(
                             return (
                               <div
                                 key={s.id}
-                                className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer select-none transition-colors ${isChecked
+                                className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer select-none transition-colors ${
+                                  isChecked
                                     ? "bg-amber-500/10 border-amber-500 text-zinc-100"
                                     : "bg-zinc-900/20 border-zinc-900 text-zinc-400"
-                                  }`}
+                                }`}
                                 onClick={() => toggleService(s)}
                               >
                                 <div className="flex items-center gap-3">
                                   <input
                                     type="checkbox"
                                     checked={isChecked}
-                                    onChange={() => { }} // Evita warning de campo readOnly do React
+                                    onChange={() => { }}
                                     className="accent-amber-500 h-4 w-4 pointer-events-none"
                                   />
                                   <span className="text-sm font-medium text-zinc-200">{s.nome}</span>
@@ -858,12 +709,202 @@ const { data: produtos = [], isLoading: loadingProdutos } = useQuery<Produto[]>(
                 <Button
                   className="w-full bg-amber-500 text-zinc-950 font-bold mt-2"
                   disabled={selectedServices.length === 0}
-                  onClick={() => setStep(4)}
+                  onClick={() => setStep(3)}
                 >
                   Avançar (R$ {totalServicos.toFixed(2)})
                 </Button>
               </div>
             )}
+
+            {step === 3 && (
+  <div className="space-y-4">
+    <h3 className="text-sm font-bold text-zinc-300">Selecione Data e Horário</h3>
+
+    {/* ESTRUTURA DO CALENDÁRIO ESTILIZADO */}
+    <div className="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-4 space-y-3">
+      {/* Cabeçalho do Calendário: Mês/Ano e Navegação */}
+      <div className="flex items-center justify-between pb-2 border-b border-zinc-800/60">
+        <div className="flex items-center gap-2">
+          <CalendarIcon className="w-4 h-4 text-amber-500" />
+          <span className="text-sm font-semibold text-zinc-200 capitalize">
+            {currentMonth.toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() =>
+              setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))
+            }
+            // Desabilita voltar para meses anteriores ao atual
+            disabled={
+              currentMonth.getFullYear() === new Date().getFullYear() &&
+              currentMonth.getMonth() <= new Date().getMonth()
+            }
+            className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
+              setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))
+            }
+            className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Dias da Semana (Dom, Seg, Ter...) */}
+      <div className="grid grid-cols-7 text-center text-[11px] font-bold text-zinc-500 uppercase tracking-wider">
+        <span>Dom</span>
+        <span>Seg</span>
+        <span>Ter</span>
+        <span>Qua</span>
+        <span>Qui</span>
+        <span>Sex</span>
+        <span>Sáb</span>
+      </div>
+
+      {/* Grid de Dias do Mês */}
+      <div className="grid grid-cols-7 gap-1">
+        {(() => {
+          const ano = currentMonth.getFullYear();
+          const mes = currentMonth.getMonth();
+
+          const primeiroDiaSemana = new Date(ano, mes, 1).getDay();
+          const totalDiasNoMes = new Date(ano, mes + 1, 0).getDate();
+
+          const hoje = new Date();
+          hoje.setHours(0, 0, 0, 0);
+
+          const celulas = [];
+
+          // Preenche os espaços em branco antes do primeiro dia do mês
+          for (let i = 0; i < primeiroDiaSemana; i++) {
+            celulas.push(<div key={`vazio-${i}`} className="h-10" />);
+          }
+
+          // Renderiza os dias do mês
+          for (let dia = 1; dia <= totalDiasNoMes; dia++) {
+            const dataObjeto = new Date(ano, mes, dia);
+            dataObjeto.setHours(0, 0, 0, 0);
+
+            // Formato ISO local YYYY-MM-DD
+            const dateStr = `${ano}-${String(mes + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+
+            const isPassado = dataObjeto < hoje;
+            const isSelected = selectedDate === dateStr;
+            const isHoje = dataObjeto.getTime() === hoje.getTime();
+
+            celulas.push(
+              <button
+                key={dateStr}
+                type="button"
+                disabled={isPassado}
+                onClick={() => {
+                  setSelectedDate(dateStr);
+                  setSelectedTime("");
+                }}
+                className={`h-10 w-full rounded-xl flex flex-col items-center justify-center text-xs transition-all relative ${
+                  isPassado
+                    ? "text-zinc-600 cursor-not-allowed opacity-40"
+                    : isSelected
+                    ? "bg-amber-500 text-zinc-950 font-bold shadow-md shadow-amber-500/20"
+                    : "text-zinc-200 hover:bg-zinc-800/80 hover:text-white"
+                }`}
+              >
+                <span>{dia}</span>
+
+                {/* Marcador discreto de "Hoje" */}
+                {isHoje && !isSelected && (
+                  <span className="w-1 h-1 rounded-full bg-amber-500 absolute bottom-1" />
+                )}
+              </button>
+            );
+          }
+
+          return celulas;
+        })()}
+      </div>
+    </div>
+
+    {/* SELEÇÃO DE HORÁRIOS */}
+    {selectedDate && (
+      <div className="space-y-2 pt-2">
+        <label className="text-xs text-zinc-400">
+          Horários Livres para {selectedDate.split("-").reverse().join("/")}
+        </label>
+        {(() => {
+          const currentFormattedTime = selectedTime ? selectedTime.substring(0, 5) : "";
+          const slots = Array.isArray(availableSlots) ? [...availableSlots] : [];
+
+          if (currentFormattedTime && !slots.includes(currentFormattedTime)) {
+            slots.push(currentFormattedTime);
+            slots.sort();
+          }
+
+          // 1. Cálculo da duração total dos serviços selecionados
+          const duracaoTotalMinutos = selectedServices.reduce(
+            (acc, s) => acc + (Number(s.duracao) || 30),
+            0
+          );
+          const horarioFechamentoLimite = "19:00"; // Ajuste conforme o fechamento real
+
+          // 2. Filtra os slots considerando o tempo do serviço
+          const slotsFiltrados = slots.filter((h) => {
+            const [horas, minutos] = h.substring(0, 5).split(":").map(Number);
+            const inicioEmMinutos = horas * 60 + minutos;
+
+            const [fechamentoHoras, fechamentoMinutos] = horarioFechamentoLimite.split(":").map(Number);
+            const fechamentoEmMinutos = fechamentoHoras * 60 + fechamentoMinutos;
+
+            return inicioEmMinutos + duracaoTotalMinutos <= fechamentoEmMinutos;
+          });
+
+          if (slotsFiltrados.length === 0) {
+            return (
+              <div className="p-4 bg-red-500/10 text-red-400 text-xs text-center font-medium rounded-xl border border-red-500/20">
+                Horários esgotados ou duração excede o expediente para este dia. Escolha outra data.
+              </div>
+            );
+          }
+
+          return (
+            <div className="grid grid-cols-4 gap-2">
+              {slotsFiltrados.map((h) => {
+                const timeStr = h.substring(0, 5);
+                const isSelected = currentFormattedTime === timeStr;
+
+                return (
+                  <Button
+                    key={h}
+                    variant={isSelected ? "default" : "outline"}
+                    className={`text-xs h-10 transition-colors ${
+                      isSelected
+                        ? "bg-amber-500 text-zinc-950 font-bold border-amber-500 hover:bg-amber-400"
+                        : "border-zinc-800 text-zinc-300 hover:bg-zinc-800"
+                    }`}
+                    onClick={() => {
+                      setSelectedTime(timeStr);
+                      setStep(4);
+                    }}
+                  >
+                    {timeStr}
+                  </Button>
+                );
+              })}
+            </div>
+          );
+        })()}
+      </div>
+    )}
+  </div>
+)}
             {step === 4 && (
               <div className="space-y-4">
                 <h3 className="text-sm font-bold text-zinc-300">Identificação & Revisão</h3>

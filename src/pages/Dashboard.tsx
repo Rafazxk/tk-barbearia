@@ -136,8 +136,7 @@ const dateStr = `${year}-${month}-${day}`;
     enabled: !!activeBarberId,
   });
 
-  // --- MUTATIONS ---
-  // 🔄 CORRIGIDO: Invalida chaves exatas contendo os filtros ativos para forçar o refetch imediato
+
   const deleteAppt = useMutation({
     mutationFn: async ({ id }: { id: number }) => {
       await api.delete(`/appointments/${id}`);
