@@ -168,26 +168,34 @@ const { data: produtos = [], isLoading: loadingProdutos } = useQuery<Produto[]>(
     });
   }, [slotsLivresDoBackend, selectedDate]);
 
+const duracaoTotalMinutos = useMemo(() => {
+  return selectedServices.reduce((acc, s) => acc + (Number(s.duracao) || Number(s.duracaoMinutos) || 30), 0);
+}, [selectedServices]);
 
+const slotsFiltrados = useMemo(() => {
+  if (!Array.isArray(slotsLivresDoBackend)) return [];
 
-const horarioFechamentoLimite = "19:00";
-const duracaoTotalMinutos = selectedServices.reduce((acc, s) => acc + (Number(s.duracao) || 30), 0);
+  const agora = new Date();
+  const hojeFormatado = format(new Date(), "yyyy-MM-dd");
+  const ehHoje = selectedDate === hojeFormatado;
 
-const slotsFiltradosPorDuracao = availableSlots.filter((horario) => {
-  // Se não tem serviço selecionado, exibe todos ou bloqueia
-  if (duracaoTotalMinutos === 0) return true;
+  return slotsLivresDoBackend.filter((horario) => {
+    const [h, m] = horario.split(":").map(Number);
+    const inicioEmMinutos = h * 60 + m;
 
-  // Converte o horário do slot (ex: "18:30") para minutos totais desde a meia-noite
-  const [horas, minutos] = horario.split(":").map(Number);
-  const inicioEmMinutos = horas * 60 + minutos;
+    // 1. Filtro de horários passados (se for hoje)
+    if (ehHoje) {
+      if (h < agora.getHours() || (h === agora.getHours() && m <= agora.getMinutes())) {
+        return false;
+      }
+    }
 
-  // Converte o horário de fechamento para minutos totais
-  const [fechamentoHoras, fechamentoMinutos] = horarioFechamentoLimite.split(":").map(Number);
-  const fechamentoEmMinutos = fechamentoHoras * 60 + fechamentoMinutos;
-
-  // O horário é válido se o término (Início + Duração) não passar do fechamento
-  return (inicioEmMinutos + duracaoTotalMinutos) <= fechamentoEmMinutos;
-});
+    // 2. Filtro de duração total dos serviços (evita estourar o expediente do dia)
+    const fechamentoEmMinutos = 20 * 60 + 0; // Ajuste aqui se o fechamento real for outro (ex: 19:50 -> 19 * 60 + 50)
+    
+    return (inicioEmMinutos + duracaoTotalMinutos) <= fechamentoEmMinutos;
+  });
+}, [slotsLivresDoBackend, selectedDate, duracaoTotalMinutos]);
 
 
   const { data: meusAgendamentos = [], isLoading: loadingMeusAgendamentos } = useQuery<IClientAppointment[]>({
@@ -834,75 +842,45 @@ const slotsFiltradosPorDuracao = availableSlots.filter((horario) => {
     </div>
 
     {/* SELEÇÃO DE HORÁRIOS */}
-    {selectedDate && (
-      <div className="space-y-2 pt-2">
-        <label className="text-xs text-zinc-400">
-          Horários Livres para {selectedDate.split("-").reverse().join("/")}
-        </label>
-        {(() => {
-          const currentFormattedTime = selectedTime ? selectedTime.substring(0, 5) : "";
-          const slots = Array.isArray(availableSlots) ? [...availableSlots] : [];
+   {selectedDate && (
+  <div className="space-y-2 pt-2">
+    <label className="text-xs text-zinc-400">
+      Horários Livres para {selectedDate.split("-").reverse().join("/")}
+    </label>
 
-          if (currentFormattedTime && !slots.includes(currentFormattedTime)) {
-            slots.push(currentFormattedTime);
-            slots.sort();
-          }
-
-          // 1. Cálculo da duração total dos serviços selecionados
-          const duracaoTotalMinutos = selectedServices.reduce(
-            (acc, s) => acc + (Number(s.duracao) || 30),
-            0
-          );
-          const horarioFechamentoLimite = "19:00"; // Ajuste conforme o fechamento real
-
-          // 2. Filtra os slots considerando o tempo do serviço
-          const slotsFiltrados = slots.filter((h) => {
-            const [horas, minutos] = h.substring(0, 5).split(":").map(Number);
-            const inicioEmMinutos = horas * 60 + minutos;
-
-            const [fechamentoHoras, fechamentoMinutos] = horarioFechamentoLimite.split(":").map(Number);
-            const fechamentoEmMinutos = fechamentoHoras * 60 + fechamentoMinutos;
-
-            return inicioEmMinutos + duracaoTotalMinutos <= fechamentoEmMinutos;
-          });
-
-          if (slotsFiltrados.length === 0) {
-            return (
-              <div className="p-4 bg-red-500/10 text-red-400 text-xs text-center font-medium rounded-xl border border-red-500/20">
-                Horários esgotados ou duração excede o expediente para este dia. Escolha outra data.
-              </div>
-            );
-          }
+    {/* Aqui usamos a variável slotsFiltrados criada no seu useMemo principal */}
+    {slotsFiltrados.length === 0 ? (
+      <div className="p-4 bg-red-500/10 text-red-400 text-xs text-center font-medium rounded-xl border border-red-500/20">
+        Horários esgotados ou duração excede o expediente para este dia. Escolha outra data.
+      </div>
+    ) : (
+      <div className="grid grid-cols-4 gap-2">
+        {slotsFiltrados.map((h) => {
+          const timeStr = h.substring(0, 5);
+          const isSelected = selectedTime === timeStr;
 
           return (
-            <div className="grid grid-cols-4 gap-2">
-              {slotsFiltrados.map((h) => {
-                const timeStr = h.substring(0, 5);
-                const isSelected = currentFormattedTime === timeStr;
-
-                return (
-                  <Button
-                    key={h}
-                    variant={isSelected ? "default" : "outline"}
-                    className={`text-xs h-10 transition-colors ${
-                      isSelected
-                        ? "bg-amber-500 text-zinc-950 font-bold border-amber-500 hover:bg-amber-400"
-                        : "border-zinc-800 text-zinc-300 hover:bg-zinc-800"
-                    }`}
-                    onClick={() => {
-                      setSelectedTime(timeStr);
-                      setStep(4);
-                    }}
-                  >
-                    {timeStr}
-                  </Button>
-                );
-              })}
-            </div>
+            <Button
+              key={h}
+              variant={isSelected ? "default" : "outline"}
+              className={`text-xs h-10 transition-colors ${
+                isSelected
+                  ? "bg-amber-500 text-zinc-950 font-bold border-amber-500 hover:bg-amber-400"
+                  : "border-zinc-800 text-zinc-300 hover:bg-zinc-800"
+              }`}
+              onClick={() => {
+                setSelectedTime(timeStr);
+                setStep(4);
+              }}
+            >
+              {timeStr}
+            </Button>
           );
-        })()}
+        })}
       </div>
     )}
+  </div>
+)}
   </div>
 )}
             {step === 4 && (
