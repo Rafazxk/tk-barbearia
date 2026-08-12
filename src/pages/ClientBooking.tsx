@@ -114,88 +114,112 @@ const { data: produtos = [], isLoading: loadingProdutos } = useQuery<Produto[]>(
     }
   });
 
-
-  const { data: slotsLivresDoBackend = [] } = useQuery<string[]>({
-    queryKey: ["client-appointments-lookup", selectedDate, selectedBarber?.id],
-    queryFn: async () => {
-      const res = await api.get("/appointments/available", {
-        params: { date: selectedDate, barberId: selectedBarber?.id }
-      });
-      return Array.isArray(res.data) ? res.data : [];
-    },
-    enabled: step === 3 && !!selectedDate && !!selectedBarber,
-    staleTime: 0,
-    refetchOnWindowFocus: true,
-  });
-
-  const { data: todosOsBloqueios = [] } = useQuery({
-    queryKey: ["schedule-blocks-all"], // Cache global de bloqueios
-    queryFn: async () => {
-      const res = await api.get("/schedule-blocks");
-      return res.data;
-    },
-    enabled: step === 2,
-  });
-
-  const { data: bloqueiosDoDia = [] } = useQuery({
-    queryKey: ["schedule-blocks-lookup", selectedDate],
-    queryFn: async () => {
-      const res = await api.get("/schedule-blocks");
-
-      return res.data;
-    },
-    enabled: step === 2 && !!selectedDate,
-    staleTime: 0,
-    refetchOnWindowFocus: true,
-  });
-
-  const availableSlots = useMemo(() => {
-    const agora = new Date();
-    const hojeFormatado = format(new Date(), "yyyy-MM-dd");
-    const ehHoje = selectedDate === hojeFormatado;
-
-    // O backend já tratou os bloqueios e expedientes. 
-    // Só precisamos filtrar os horários que já passaram (caso seja hoje).
-    return slotsLivresDoBackend.filter((horario) => {
-      if (!ehHoje) return true;
-
-      const [h, m] = horario.split(":").map(Number);
-      if (h < agora.getHours() || (h === agora.getHours() && m <= agora.getMinutes())) {
-        return false;
-      }
-
-      return true;
-    });
-  }, [slotsLivresDoBackend, selectedDate]);
-
 const duracaoTotalMinutos = useMemo(() => {
-  return selectedServices.reduce((acc, s) => acc + (Number(s.duracao) || Number(s.duracaoMinutos) || 30), 0);
+  return selectedServices.reduce(
+    (acc, s) =>
+      acc +
+      (Number(s.duracao) ||
+        Number(s.duracaoMinutos) ||
+        30),
+    0
+  );
 }, [selectedServices]);
 
-const slotsFiltrados = useMemo(() => {
-  if (!Array.isArray(slotsLivresDoBackend)) return [];
+const { data: slotsLivresDoBackend = [] } = useQuery<string[]>({
+  queryKey: [
+    "client-appointments-lookup",
+    selectedDate,
+    selectedBarber?.id,
+    duracaoTotalMinutos,
+  ],
 
+  queryFn: async () => {
+    const res = await api.get("/appointments/available", {
+      params: {
+        date: selectedDate,
+        barberId: selectedBarber?.id,
+        duracaoMinutos: duracaoTotalMinutos,
+      },
+    });
+
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  enabled:
+    step === 3 &&
+    !!selectedDate &&
+    !!selectedBarber &&
+    duracaoTotalMinutos > 0,
+
+  staleTime: 0,
+  refetchOnWindowFocus: true,
+});
+
+
+const { data: todosOsBloqueios = [] } = useQuery({
+  queryKey: ["schedule-blocks-all"],
+
+  queryFn: async () => {
+    const res = await api.get("/schedule-blocks");
+    return res.data;
+  },
+
+  enabled: step === 2,
+});
+
+const { data: bloqueiosDoDia = [] } = useQuery({
+  queryKey: ["schedule-blocks-lookup", selectedDate],
+
+  queryFn: async () => {
+    const res = await api.get("/schedule-blocks");
+    return res.data;
+  },
+
+  enabled: step === 2 && !!selectedDate,
+
+  staleTime: 0,
+  refetchOnWindowFocus: true,
+});
+
+  const availableSlots = useMemo(() => {
   const agora = new Date();
-  const hojeFormatado = format(new Date(), "yyyy-MM-dd");
-  const ehHoje = selectedDate === hojeFormatado;
+
+  const hojeFormatado = format(
+    new Date(),
+    "yyyy-MM-dd"
+  );
+
+  const ehHoje =
+    selectedDate === hojeFormatado;
 
   return slotsLivresDoBackend.filter((horario) => {
-    const [h, m] = horario.split(":").map(Number);
-    const inicioEmMinutos = h * 60 + m;
-
-    // 1. Filtro de horários passados (se for hoje)
-    if (ehHoje) {
-      if (h < agora.getHours() || (h === agora.getHours() && m <= agora.getMinutes())) {
-        return false;
-      }
+    // Se não é hoje, mantém todos os horários
+    // que o backend retornou.
+    if (!ehHoje) {
+      return true;
     }
 
-    // 2. Filtro de duração total dos serviços (evita estourar o expediente do dia)
-    const fechamentoEmMinutos = 20 * 60 + 0; // Ajuste aqui se o fechamento real for outro (ex: 19:50 -> 19 * 60 + 50)
-    
-    return (inicioEmMinutos + duracaoTotalMinutos) <= fechamentoEmMinutos;
+    const [h, m] = horario
+      .split(":")
+      .map(Number);
+
+    // Remove horários que já passaram.
+    if (
+      h < agora.getHours() ||
+      (
+        h === agora.getHours() &&
+        m <= agora.getMinutes()
+      )
+    ) {
+      return false;
+    }
+
+    return true;
   });
-}, [slotsLivresDoBackend, selectedDate, duracaoTotalMinutos]);
+}, [
+  slotsLivresDoBackend,
+  selectedDate,
+]);
 
 
   const { data: meusAgendamentos = [], isLoading: loadingMeusAgendamentos } = useQuery<IClientAppointment[]>({
@@ -208,6 +232,7 @@ const slotsFiltrados = useMemo(() => {
     enabled: searchedPhone.length >= 8,
   });
   //DELETE
+
   const deleteAppointment = useMutation({
     mutationFn: async (appointmentId: number) => {
       return await api.delete(`/appointments/client/${appointmentId}`);
@@ -842,43 +867,34 @@ const slotsFiltrados = useMemo(() => {
     </div>
 
     {/* SELEÇÃO DE HORÁRIOS */}
-   {selectedDate && (
-  <div className="space-y-2 pt-2">
-    <label className="text-xs text-zinc-400">
-      Horários Livres para {selectedDate.split("-").reverse().join("/")}
-    </label>
+  {availableSlots.length === 0 ? (
+  <div className="p-4 bg-red-500/10 text-red-400 text-xs text-center font-medium rounded-xl border border-red-500/20">
+    Horários esgotados ou duração excede o expediente para este dia. Escolha outra data.
+  </div>
+) : (
+  <div className="grid grid-cols-4 gap-2">
+    {availableSlots.map((h) => {
+      const timeStr = h.substring(0, 5);
+      const isSelected = selectedTime === timeStr;
 
-    {/* Aqui usamos a variável slotsFiltrados criada no seu useMemo principal */}
-    {slotsFiltrados.length === 0 ? (
-      <div className="p-4 bg-red-500/10 text-red-400 text-xs text-center font-medium rounded-xl border border-red-500/20">
-        Horários esgotados ou duração excede o expediente para este dia. Escolha outra data.
-      </div>
-    ) : (
-      <div className="grid grid-cols-4 gap-2">
-        {slotsFiltrados.map((h) => {
-          const timeStr = h.substring(0, 5);
-          const isSelected = selectedTime === timeStr;
-
-          return (
-            <Button
-              key={h}
-              variant={isSelected ? "default" : "outline"}
-              className={`text-xs h-10 transition-colors ${
-                isSelected
-                  ? "bg-amber-500 text-zinc-950 font-bold border-amber-500 hover:bg-amber-400"
-                  : "border-zinc-800 text-zinc-300 hover:bg-zinc-800"
-              }`}
-              onClick={() => {
-                setSelectedTime(timeStr);
-                setStep(4);
-              }}
-            >
-              {timeStr}
-            </Button>
-          );
-        })}
-      </div>
-    )}
+      return (
+        <Button
+          key={h}
+          variant={isSelected ? "default" : "outline"}
+          className={`text-xs h-10 transition-colors ${
+            isSelected
+              ? "bg-amber-500 text-zinc-950 font-bold border-amber-500 hover:bg-amber-400"
+              : "border-zinc-800 text-zinc-300 hover:bg-zinc-800"
+          }`}
+          onClick={() => {
+            setSelectedTime(timeStr);
+            setStep(4);
+          }}
+        >
+          {timeStr}
+        </Button>
+      );
+    })}
   </div>
 )}
   </div>
@@ -976,34 +992,37 @@ const slotsFiltrados = useMemo(() => {
             )}
           </div>
 
-          <div className="flex justify-between gap-2 pt-4 mt-6 border-t border-zinc-900">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-zinc-400 text-xs"
-              onClick={() => {
-                if (step > 1) setStep(step - 1);
-                else {
-                  setView("home");
-                  resetForm();
-                }
-              }}
-            >
-              Voltar
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-zinc-500 text-xs"
-              onClick={() => {
-                setView("home");
-                resetForm();
-              }}
-            >
-              Cancelar Tudo
-            </Button>
-          </div>
-        </div>
+      
+<div className="flex justify-between gap-3 pt-5 mt-6 border-t border-zinc-900">
+  <Button
+    variant="outline"
+    className="border-zinc-800 text-zinc-300 hover:bg-zinc-900 hover:text-white h-11 px-5 text-sm font-medium rounded-xl flex items-center justify-center gap-2 transition-all"
+    onClick={() => {
+      if (step > 1) {
+        setStep(step - 1);
+      } else {
+        setView("home");
+        resetForm();
+      }
+    }}
+  >
+    ← Voltar
+  </Button>
+
+  <Button
+    className="bg-amber-500 text-zinc-950 hover:bg-amber-400 font-bold h-11 px-5 text-sm rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/10"
+    onClick={() => {
+      setView("home");
+      resetForm();
+    }}
+  >
+    Cancelar Tudo
+  </Button>
+</div>
+
+
+
+</div>
       )}
 
       {/* VIEW: MY APPOINTMENTS */}
@@ -1115,4 +1134,4 @@ const slotsFiltrados = useMemo(() => {
       )}
     </div>
   );
-}
+ }
