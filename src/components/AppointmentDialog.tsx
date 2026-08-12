@@ -72,13 +72,13 @@ export function AppointmentDialog({
 
   // 📥 BUSCA OS SLOTS CALCULADOS DO EXPEDIENTE DIRETO DO BACKEND
   const { data: slotsDoExpediente = [], isLoading: isLoadingSlots } = useQuery<string[]>({
-    queryKey: ["available-slots-dinamicos", dataInput, user?.id],
+    queryKey: ["available-slots-dinamicos", dataInput, user?.id, duracao],
     queryFn: async () => {
       const response = await api.get("/appointments/available", {
         params: {
           date: dataInput,
-          barberId: user?.id
-
+          barberId: user?.id,
+          duracaoMinutos: duracao,
         }
       });
       return response.data; // Espera vir do service ex: ["10:00", "10:30", "11:00"]
@@ -275,7 +275,7 @@ const handleServiceChange = (id: number) => {
             <input
               type="number"
               step="5"
-              min="15"
+              min="10"
               max="180"
               value={duracao}
               onChange={(e) => {
