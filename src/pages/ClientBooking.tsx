@@ -374,7 +374,9 @@ const { data: bloqueiosDoDia = [] } = useQuery({
     try {
       // 1. Busque os bloqueios atuais antes de finalizar
       const { data: bloqueios } = await api.get("/schedule-blocks");
-
+console.log("Data selecionada:", selectedDate);
+      console.log("Horário escolhido:", selectedTime);
+      console.log("Lista de bloqueios recebida do back:", bloqueios);
       // 2. Verifique se o horário escolhido está bloqueado
       const horarioEscolhido = `${selectedTime}:00`;
 
@@ -382,12 +384,23 @@ const { data: bloqueiosDoDia = [] } = useQuery({
         // Garante comparação correta de datas
         if (b.dataInicio !== selectedDate) return false;
 
-        // Bloqueio de dia inteiro
+        // Se o bloqueio tiver ID de barbeiro especificado e NÃO for o seu (ID 10), ignore-o
+        // (Ajuste "barbeiroId" para o nome exato da coluna no seu banco, ex: barberId)
+        const idBarbeiroBloqueio = b.barbeiroId ?? b.barber_id;
+        if (idBarbeiroBloqueio && Number(idBarbeiroBloqueio) !== 10) {
+          return false; 
+        }
+
+        // Bloqueio de dia inteiro (geral ou específico para você)
         if (b.tipo === "data") return true;
 
         // Bloqueio de horário
         if (b.tipo === "horario" && b.horaInicio && b.horaFim) {
-          return horarioEscolhido >= b.horaInicio && horarioEscolhido <= b.horaFim;
+          const inicioBloqueio = b.horaInicio.substring(0, 5);
+          const fimBloqueio = b.horaFim.substring(0, 5);
+          const horarioAtual = selectedTime.substring(0, 5);
+
+          return horarioAtual >= inicioBloqueio && horarioAtual <= fimBloqueio;
         }
         return false;
       });
