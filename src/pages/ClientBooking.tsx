@@ -131,6 +131,7 @@ const { data: slotsLivresDoBackend = [] } = useQuery<string[]>({
     selectedDate,
     selectedBarber?.id,
     duracaoTotalMinutos,
+    "cliente"
   ],
 
   queryFn: async () => {
@@ -139,6 +140,7 @@ const { data: slotsLivresDoBackend = [] } = useQuery<string[]>({
         date: selectedDate,
         barberId: selectedBarber?.id,
         duracaoMinutos: duracaoTotalMinutos,
+        tipo: "cliente"
       },
     });
 
@@ -193,17 +195,13 @@ const { data: bloqueiosDoDia = [] } = useQuery({
     selectedDate === hojeFormatado;
 
   return slotsLivresDoBackend.filter((horario) => {
-    // Se não é hoje, mantém todos os horários
-    // que o backend retornou.
     if (!ehHoje) {
       return true;
     }
-
     const [h, m] = horario
       .split(":")
       .map(Number);
 
-    // Remove horários que já passaram.
     if (
       h < agora.getHours() ||
       (
@@ -239,8 +237,8 @@ const { data: bloqueiosDoDia = [] } = useQuery({
     },
     onSuccess: () => {
       toast.success("Agendamento cancelado com sucesso!");
-      // Refetch the appointments after deletion
-      setSearchedPhone(""); // Limpa o campo de busca para forçar o refetch
+      
+      setSearchedPhone(""); 
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.error || "Erro ao cancelar agendamento.");

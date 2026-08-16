@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useBarber } from "@/contexts/BarberContext";
 import { Appointment } from "@/pages/Dashboard";
 import { format, isValid } from "date-fns";
-
+import { Time } from "@/lib/Time.js";
 
 interface AppointmentDialogProps {
   open: boolean;
@@ -47,6 +47,8 @@ export function AppointmentDialog({
     queryFn: async () => {
       const res = await api.get("/schedule-blocks");
       return res.data;
+
+      
     },
     enabled: open, // Só busca quando o modal abrir
   });
@@ -72,18 +74,21 @@ export function AppointmentDialog({
 
   // 📥 BUSCA OS SLOTS CALCULADOS DO EXPEDIENTE DIRETO DO BACKEND
   const { data: slotsDoExpediente = [], isLoading: isLoadingSlots } = useQuery<string[]>({
-    queryKey: ["available-slots-dinamicos", dataInput, user?.id, duracao],
+    queryKey: ["available-slots-dinamicos", dataInput, user?.id, duracao, "barbeiro"],
     queryFn: async () => {
       const response = await api.get("/appointments/available", {
         params: {
           date: dataInput,
           barberId: user?.id,
           duracaoMinutos: duracao,
-        }
+          tipo: "barbeiro"
+        },
+
+        
       });
-      return response.data; // Espera vir do service ex: ["10:00", "10:30", "11:00"]
+
+      return response.data; 
     },
-    // Só roda se o dialog estiver aberto, e tivermos uma data e o ID do barbeiro logado
     enabled: open && !!dataInput && !!user?.id,
   });
 
@@ -167,20 +172,70 @@ const handleServiceChange = (id: number) => {
     }
   };
 
-  const handleFormSubmit = async (e: React.FormEvent) => {
+ const handleFormSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
-  if (!horaInput) return;
+
+  if (!horaInput || !user?.id) return;
+
+  const agendamentosDoDia =
+    queryClient.getQueryData<Appointment[]>([
+      "appointments",
+      dataInput,
+      user.id,
+    ]) ?? [];
+
+  const inicioNovoAgendamento = new Time(horaInput);
+  const inicioNovoMinutos =
+    inicioNovoAgendamento.toMinutes();
+
+  const fimNovoMinutos =
+    inicioNovoMinutos + duracao;
+
+  const conflitoDuracao = agendamentosDoDia.some((agendamento) => {
+    // Se estiver editando o próprio agendamento,
+    // não devemos considerar ele como conflito.
+    if (appointment && agendamento.id === appointment.id) {
+      return false;
+    }
+
+    const inicioExistente =
+      new Time(agendamento.dataHora.split("T")[1]?.substring(0, 5));
+
+    const inicioExistenteMinutos =
+      inicioExistente.toMinutes();
+
+    const fimExistenteMinutos =
+      inicioExistenteMinutos +
+      agendamento.totalDuracao;
+
+    return (
+      inicioNovoMinutos < fimExistenteMinutos &&
+      fimNovoMinutos > inicioExistenteMinutos
+    );
+  });
+
+  if (conflitoDuracao) {
+    const confirmar = window.confirm(
+      "O serviço selecionado ultrapassa o horário de outro agendamento.\n\nDeseja realmente realizar este agendamento?"
+    );
+
+    if (!confirmar) {
+      return;
+    }
+  }
 
   const payload = {
     clienteNome,
     clienteTelefone,
-    dataHora: `${dataInput}T${horaInput}:00`, 
-    barbeiroId: user?.id, 
+    dataHora: `${dataInput}T${horaInput}:00`,
+    barbeiroId: user.id,
     servicoIds,
-    duracao, 
+    duracao,
   };
+
   await onSubmit(payload);
 };
+
   if (!open) return null;
 
 

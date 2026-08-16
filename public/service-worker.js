@@ -10,7 +10,6 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("push", (event) => {
   // SE ISSO RODAR, O CELULAR TEM QUE VIBRAR E O LOG TEM QUE APARECER NO CONSOLE
-  console.log("🔥 EVENTO PUSH DISPARADO PELO SERVIDOR NO CELULAR!");
   
   if ('vibrate' in navigator) {
     navigator.vibrate([500, 200, 500]);
@@ -37,10 +36,4 @@ self.addEventListener("push", (event) => {
     vibrate: [200, 100, 200],
     requireInteraction: true
   };
-
-  event.waitUntil(
-    self.registration.showNotification(data.title, options)
-      .then(() => console.log("✅ showNotification executado com sucesso!"))
-      .catch((err) => console.error("❌ Erro no showNotification:", err))
-  );
 });

@@ -185,13 +185,55 @@ const dateStr = `${year}-${month}-${day}`;
     }
   });
 
-  const handleFormSubmit = async (payload: any) => {
-    if (editingAppt) {
-      await updateAppt.mutateAsync({ id: editingAppt.id, data: payload });
-    } else {
-      await createAppt.mutateAsync(payload);
+const verificarConflito = (payload: any): boolean => {
+  const novoInicio = parseLocalDate(payload.dataHora).getTime();
+
+  const novaDuracao = Number(payload.duracao ?? 30);
+
+  const novoFim = novoInicio + novaDuracao * 60 * 1000;
+
+  return appointments.some((appt) => {
+    // Ao editar, não pode considerar o próprio agendamento como conflito
+    if (editingAppt && appt.id === editingAppt.id) {
+      return false;
     }
-  };
+
+    const inicioExistente = parseLocalDate(appt.dataHora).getTime();
+
+    const duracaoExistente = Number(appt.totalDuracao ?? 30);
+
+    const fimExistente =
+      inicioExistente + duracaoExistente * 60 * 1000;
+
+    return (
+      novoInicio < fimExistente &&
+      novoFim > inicioExistente
+    );
+  });
+};
+
+  const handleFormSubmit = async (payload: any) => {
+  const existeConflito = verificarConflito(payload);
+
+  if (existeConflito) {
+    const confirmar = window.confirm(
+      "Este agendamento irá sobrepor outro agendamento existente.\n\nDeseja realmente continuar?"
+    );
+
+    if (!confirmar) {
+      return;
+    }
+  }
+
+  if (editingAppt) {
+    await updateAppt.mutateAsync({
+      id: editingAppt.id,
+      data: payload,
+    });
+  } else {
+    await createAppt.mutateAsync(payload);
+  }
+};
 
   const isToday = dateStr === format(new Date(), "yyyy-MM-dd");
 
@@ -225,7 +267,7 @@ const dateStr = `${year}-${month}-${day}`;
                 {format(date, "dd/MM/yyyy")}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0 border-zinc-800" align="end">
+            <PopoverContent className="w-auto p-0 border-zinc-800" align="center">
               <Calendar 
                 selected={date} 
                 onSelect={(d) => { 

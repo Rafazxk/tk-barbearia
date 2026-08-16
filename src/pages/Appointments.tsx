@@ -62,12 +62,10 @@ export default function Appointments() {
 
   return rawData.map((appt) => ({
     ...appt,
-    // Garante que as datas sejam instâncias da sua classe ou apenas formatadas na exibição
     dataHora: appt.dataHora, 
     servicos: Array.isArray(appt.servicos) ? appt.servicos : [],
   }));
 },
-
     placeholderData: [],
   });
 
@@ -75,7 +73,7 @@ export default function Appointments() {
 useEffect(() => {
     const interval = setInterval(() => {
       setTick((prev) => prev + 1);
-    }, 60_000); // Atualiza a cada 60 segundos
+    }, 60_000); 
     
     return () => clearInterval(interval);
   }, []);
