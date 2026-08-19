@@ -372,9 +372,7 @@ const { data: bloqueiosDoDia = [] } = useQuery({
     try {
       // 1. Busque os bloqueios atuais antes de finalizar
       const { data: bloqueios } = await api.get("/schedule-blocks");
-console.log("Data selecionada:", selectedDate);
-      console.log("Horário escolhido:", selectedTime);
-      console.log("Lista de bloqueios recebida do back:", bloqueios);
+
       // 2. Verifique se o horário escolhido está bloqueado
       const horarioEscolhido = `${selectedTime}:00`;
 

@@ -9,23 +9,18 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("push", (event) => {
-  // SE ISSO RODAR, O CELULAR TEM QUE VIBRAR E O LOG TEM QUE APARECER NO CONSOLE
-  
-  if ('vibrate' in navigator) {
-    navigator.vibrate([500, 200, 500]);
-  }
-
   let data = {
     title: "TK Barbearia",
-    body: "Novo agendamento recebido!"
+    body: "Novo agendamento recebido!",
   };
 
   try {
     if (event.data) {
       data = event.data.json();
     }
-  } catch (e) {
-    console.error("Erro ao ler JSON do push:", e);
+  } catch (error) {
+    console.error("Erro ao ler JSON do push:", error);
+
     if (event.data) {
       data.body = event.data.text();
     }
@@ -34,6 +29,11 @@ self.addEventListener("push", (event) => {
   const options = {
     body: data.body,
     vibrate: [200, 100, 200],
-    requireInteraction: true
+    requireInteraction: true,
   };
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, options)
+  );
+
 });

@@ -37,7 +37,6 @@ export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
   const [isUploadingFoto, setIsUploadingFoto] = useState(false);
   const barbeiroIdDestino = user?.role === "admin" ? null : user?.id;
 
-  // 1️⃣ ESTADO DE PREFERÊNCIAS (Inicia lendo do localStorage se existir)
   const [preferencias, setPreferencias] = useState<Preferencias>(() => {
     const salvas = localStorage.getItem("@TKBarber:preferences");
     if (salvas) {
@@ -55,14 +54,74 @@ export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
     };
   });
 
-  // Função para alternar o checkbox e salvar imediatamente no localStorage
-  const handleTogglePreferencias = (chave: keyof Preferencias) => {
-    setPreferencias((prev) => {
-      const novas = { ...prev, [chave]: !prev[chave] };
-      localStorage.setItem("@TKBarber:preferences", JSON.stringify(novas));
-      return novas;
-    });
-  };
+const {
+  data: notificacaoPreference,
+  isLoading: carregandoNotificacaoPreference,
+} = useQuery({
+  queryKey: ["notification-preference", user?.id],
+  queryFn: async () => {
+    const res = await api.get(
+      "/auth/notification-preference",
+      {
+        withCredentials: true,
+      }
+    );
+
+    return res.data.ativo;
+  },
+  enabled: !!user?.id,
+});
+
+
+ const handleTogglePreferencias = async (
+  chave: keyof Preferencias
+) => {
+  const novoValor = !preferencias[chave];
+
+  setPreferencias((prev) => ({
+    ...prev,
+    [chave]: novoValor,
+  }));
+
+  if (chave === "notificacoesNovoAgendamento") {
+    try {
+      await api.put(
+        "/auth/notification-preference",
+        {
+          ativo: novoValor,
+        },
+        {
+          withCredentials: true,
+        }
+      );
+
+      queryClient.invalidateQueries({
+        queryKey: ["notification-preference", user?.id],
+      });
+
+    } catch (error) {
+      console.error(
+        "Erro ao salvar preferência:",
+        error
+      );
+
+      setPreferencias((prev) => ({
+        ...prev,
+        [chave]: !novoValor,
+      }));
+    }
+
+    return;
+  }
+
+  localStorage.setItem(
+    "@TKBarber:preferences",
+    JSON.stringify({
+      ...preferencias,
+      [chave]: novoValor,
+    })
+  );
+};
 
   const [nomeBarbeiro, setNomeBarbeiro] = useState<string>(() => {
     const usuarioSalvo = localStorage.getItem("@TKBarber:user");
@@ -117,6 +176,15 @@ export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
       setConfigs(diasIniciais);
     }
   }, [serverData]);
+
+useEffect(() => {
+  if (notificacaoPreference !== undefined) {
+    setPreferencias((prev) => ({
+      ...prev,
+      notificacoesNovoAgendamento: notificacaoPreference,
+    }));
+  }
+}, [notificacaoPreference]);
 
   // UPLOAD DA FOTO
   const handleMudancaArquivo = async (e: React.ChangeEvent<HTMLInputElement>) => {

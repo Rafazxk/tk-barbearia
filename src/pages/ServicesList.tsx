@@ -100,7 +100,7 @@ export default function ServicesList() {
   // Controladores de drag-and-drop
   const onDragEnd = (result: DropResult) => {
     const { source, destination, type } = result;
-    console.log("result", result);
+   
     if (!destination) return;
     if (source.droppableId === destination.droppableId && source.index === destination.index) return;
 
@@ -110,7 +110,7 @@ export default function ServicesList() {
       const [movedCategory] = newItems.splice(source.index, 1);
       newItems.splice(destination.index, 0, movedCategory);
       setItems(newItems);
-      console.log("newItems", newItems);
+      
       updateOrderMutation.mutate({
         type: "categories",
         orderedIds: newItems.map(c => c.id.toString())

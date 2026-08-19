@@ -18,33 +18,20 @@ export function NotificationBanner() {
   if (!isAuthenticated || !user) return;
 
   const syncSubscription = async () => {
-    console.log("=== syncSubscription ===");
-  console.log("isAuthenticated:", isAuthenticated);
-  console.log("user:", user);
-  console.log("permission:", Notification.permission);
-
-
-
-      if (Notification.permission !== "granted") {
-    console.log("Sem permissão");
-    return;
-  }
 
     const registration = await navigator.serviceWorker.ready;
-  console.log("SW:", registration);
+
 
     let subscription =
       await registration.pushManager.getSubscription();
-console.log("Subscription existente:", subscription);
     if (!subscription) {
-      console.log("Criando nova inscrição...");
       const convertedVapidKey = urlBase64ToUint8Array(key);
 
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: convertedVapidKey,
       });
-      console.log("Nova subscription:", subscription);
+
     }
       
 
@@ -53,9 +40,8 @@ console.log("Subscription existente:", subscription);
       subscription,
     });
 
-    console.log("Nova subscription:", subscription);
+    
   };
-
 
 
   syncSubscription().catch(console.error);
@@ -74,34 +60,32 @@ const urlBase64ToUint8Array = (base64String: string) => {
 
 const handleSubscribe = async () => {
   try {
-    console.log("1");
+
     const registration = await navigator.serviceWorker.ready;
-     console.log("2");
-    // 2. Converta a string para o formato aceito pelo navegador
+   
+  
     const convertedVapidKey = urlBase64ToUint8Array(key);
-  console.log("3");
+
     const subscription = await registration.pushManager.subscribe({
 
       userVisibleOnly: true,
       applicationServerKey: convertedVapidKey 
     });
-  console.log("4", subscription);
+  
     await api.post("/notifications/subscribe", {
       barberId: user?.id,
       subscription: subscription
     });
 
-  console.log("5");
   } catch (err) {
     console.error("Erro na inscrição:", err);
   }
 };
 
   const requestPermission = async () => {
-    console.log("Cliquei no botão");
+    
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
-      // Aqui é onde você CHAMA a função que faz o trabalho pesado
       await handleSubscribe();
     }
     setShow(false);

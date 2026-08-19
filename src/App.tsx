@@ -122,8 +122,8 @@ useEffect(() => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/service-worker.js', { scope: '/' })
         .then((reg) => {
-          console.log('Service Worker registrado com sucesso!', reg);
-          // Força a checagem de atualização imediata do SW
+       
+      
           reg.update();
         })
         .catch((err) => console.error('Erro ao registrar SW:', err));
