@@ -50,7 +50,7 @@ export function AppointmentDialog({
 
       
     },
-    enabled: open, // Só busca quando o modal abrir
+    enabled: open,
   });
 
   // Estados locais do formulário
@@ -72,7 +72,6 @@ export function AppointmentDialog({
     enabled: open,
   });
 
-  // 📥 BUSCA OS SLOTS CALCULADOS DO EXPEDIENTE DIRETO DO BACKEND
   const { data: slotsDoExpediente = [], isLoading: isLoadingSlots } = useQuery<string[]>({
     queryKey: ["available-slots-dinamicos", dataInput, user?.id, duracao, "barbeiro"],
     queryFn: async () => {
@@ -108,7 +107,6 @@ export function AppointmentDialog({
         appointment.servicos?.map((s) => Number(s.id)) ?? []
       );
 
-      // Define a duração vinda do banco e trava o modo manual
       setDuracao(appointment.totalDuracao ?? 30);
       setDuracaoManual(true);
     } else {
@@ -124,7 +122,7 @@ export function AppointmentDialog({
       setHoraInput("");
       setServicoIds([]);
       setDuracao(30);
-      setDuracaoManual(false); // Libera o cálculo automático para novos agendamentos
+      setDuracaoManual(false); 
     }
   }, [appointment, open, selectedDate]);
 
@@ -146,7 +144,6 @@ export function AppointmentDialog({
     });
   }, [slotsDoExpediente, bloqueios, dataInput]);
 
-  // Caso seja uma edição, força a hora atual do agendamento a aparecer na lista se não estiver nela
   if (appointment && horaInput && !opcoesDeHorario.includes(horaInput)) {
     opcoesDeHorario.push(horaInput);
     opcoesDeHorario.sort();
@@ -159,7 +156,6 @@ const handleServiceChange = (id: number) => {
 
     setServicoIds(novosIds);
 
-    // Só recalcula automaticamente se o usuário NÃO alterou manualmente
     if (!duracaoManual) {
       const novaDuracao = categorias
         .flatMap(c => c.servicos)
