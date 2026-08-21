@@ -261,7 +261,7 @@ export default function ClientBooking() {
     onError: (err: any) => {
       toast.error(err.response?.data?.error || "Erro ao processar.");
     },
-    
+
     onSettled: () => {
     enviandoAgendamentoRef.current = false;
   }
@@ -362,7 +362,10 @@ export default function ClientBooking() {
   };
 
   const handleFinalSubmit = async () => {
-
+    if (enviandoAgendamentoRef.current) {
+    return;
+  }
+  
     if (upsertAppointment.isPending) return;
 
     if (!clienteNome || !clienteTelefone) {
