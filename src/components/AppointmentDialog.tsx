@@ -126,23 +126,9 @@ export function AppointmentDialog({
     }
   }, [appointment, open, selectedDate]);
 
-  const opcoesDeHorario = useMemo(() => {
-    return slotsDoExpediente.filter((hora) => {
-      // Verifica se a 'hora' atual está em algum bloqueio
-      const ehBloqueado = bloqueios.some((b: any) => {
-        // Bloqueio de dia inteiro
-        if (b.tipo === "data" && b.dataInicio === dataInput) return true;
-
-        // Bloqueio de horário específico
-        if (b.tipo === "horario" && b.dataInicio === dataInput) {
-          return hora >= b.horaInicio && hora <= b.horaFim;
-        }
-        return false;
-      });
-
-      return !ehBloqueado;
-    });
-  }, [slotsDoExpediente, bloqueios, dataInput]);
+const opcoesDeHorario = useMemo(() => {
+    return slotsDoExpediente;
+  }, [slotsDoExpediente]);
 
   if (appointment && horaInput && !opcoesDeHorario.includes(horaInput)) {
     opcoesDeHorario.push(horaInput);
