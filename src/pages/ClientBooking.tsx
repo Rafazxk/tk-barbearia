@@ -378,25 +378,32 @@ export default function ClientBooking() {
       const horarioEscolhido = `${selectedTime}:00`;
 
       const estaBloqueado = bloqueios.some((b: any) => {
+  // 1. Verifica se a data é a mesma
+  if (b.dataInicio !== selectedDate) return false;
 
-        if (b.dataInicio !== selectedDate) return false;
+  // 2. Pega o ID do barbeiro do bloqueio
+  const idBarbeiroBloqueio = b.barbeiroId ?? b.barber_id;
+  const barbeiroAtualId = Number(selectedBarber?.id);
 
-        const idBarbeiroBloqueio = b.barbeiroId ?? b.barber_id;
-        if (idBarbeiroBloqueio && Number(idBarbeiroBloqueio) !== 10) {
-          return false;
-        }
+  // 3. Se o bloqueio for para um barbeiro específico, ele só deve bloquear se for O MESMO barbeiro selecionado
+  if (idBarbeiroBloqueio && Number(idBarbeiroBloqueio) !== barbeiroAtualId) {
+    return false;
+  }
 
-        if (b.tipo === "data") return true;
+  // 4. Se o bloqueio for para o dia todo
+  if (b.tipo === "data") return true;
 
-        if (b.tipo === "horario" && b.horaInicio && b.horaFim) {
-          const inicioBloqueio = b.horaInicio.substring(0, 5);
-          const fimBloqueio = b.horaFim.substring(0, 5);
-          const horarioAtual = selectedTime.substring(0, 5);
+  // 5. Se o bloqueio for por horário específico
+  if (b.tipo === "horario" && b.horaInicio && b.horaFim) {
+    const inicioBloqueio = b.horaInicio.substring(0, 5);
+    const fimBloqueio = b.horaFim.substring(0, 5);
+    const horarioAtual = selectedTime.substring(0, 5);
 
-          return horarioAtual >= inicioBloqueio && horarioAtual <= fimBloqueio;
-        }
-        return false;
-      });
+    return horarioAtual >= inicioBloqueio && horarioAtual <= fimBloqueio;
+  }
+  
+  return false;
+});
 
       if (estaBloqueado) {
         toast.error("Ops! Esse horário foi bloqueado recentemente. Escolha outro.");
