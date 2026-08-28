@@ -461,18 +461,19 @@ useEffect(() => {
                           {isEditandoGrade ? (
                             <div className="space-y-1">
                               <label className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Intervalo dos Slots</label>
-                              <select
-                                disabled={!config.trabalha}
-                                value={config.intervaloMinutos}
-                                onChange={(e) => handleHorarioChange(index, "intervaloMinutos", Number(e.target.value))}
-                                className="bg-background border border-border rounded-lg px-2 py-1.5 text-xs text-foreground w-full cursor-pointer disabled:opacity-40"
-                              >
-                                <option value={10}>A cada 10 min</option>
-                                <option value={15}>A cada 15 min</option>
-                                <option value={30}>A cada 30 min</option>
-                                <option value={45}>A cada 45 min</option>
-                                <option value={60}>A cada 1 hora</option>
-                              </select>
+                             <select
+  disabled={!config.trabalha}
+  value={config.intervaloMinutos}
+  onChange={(e) => handleHorarioChange(index, "intervaloMinutos", Number(e.target.value))}
+  className="bg-background border border-border rounded-lg px-2 py-1.5 text-xs text-foreground w-full cursor-pointer disabled:opacity-40"
+>
+  <option value={5}>A cada 5 min</option>
+  <option value={10}>A cada 10 min</option>
+  <option value={15}>A cada 15 min</option>
+  <option value={30}>A cada 30 min</option>
+  <option value={45}>A cada 45 min</option>
+  <option value={60}>A cada 1 hora</option>
+</select>
                             </div>
                           ) : (
                             <span className="text-xs text-muted-foreground bg-zinc-900 border border-border/40 px-2.5 py-1 rounded-md max-w-max">
