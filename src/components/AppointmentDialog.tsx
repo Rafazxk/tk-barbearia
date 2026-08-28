@@ -312,7 +312,7 @@ const handleServiceChange = (id: number) => {
             <input
               type="number"
               step="5"
-              min="10"
+              min="5"
               max="180"
               value={duracao}
               onChange={(e) => {
