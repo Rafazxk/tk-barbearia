@@ -253,7 +253,6 @@ const handleServiceChange = (id: number) => {
             <label className="text-xs font-medium text-zinc-300">WhatsApp / Telefone</label>
             <input
               type="tel"
-              required
               placeholder="Ex: 81999999999"
               value={clienteTelefone}
               onChange={(e) => setClienteTelefone(e.target.value)}

@@ -54,74 +54,74 @@ export default function SettingsLayout({ abaInicial }: SettingsLayoutProps) {
     };
   });
 
-const {
-  data: notificacaoPreference,
-  isLoading: carregandoNotificacaoPreference,
-} = useQuery({
-  queryKey: ["notification-preference", user?.id],
-  queryFn: async () => {
-    const res = await api.get(
-      "/auth/notification-preference",
-      {
-        withCredentials: true,
-      }
-    );
-
-    return res.data.ativo;
-  },
-  enabled: !!user?.id,
-});
-
-
- const handleTogglePreferencias = async (
-  chave: keyof Preferencias
-) => {
-  const novoValor = !preferencias[chave];
-
-  setPreferencias((prev) => ({
-    ...prev,
-    [chave]: novoValor,
-  }));
-
-  if (chave === "notificacoesNovoAgendamento") {
-    try {
-      await api.put(
+  const {
+    data: notificacaoPreference,
+    isLoading: carregandoNotificacaoPreference,
+  } = useQuery({
+    queryKey: ["notification-preference", user?.id],
+    queryFn: async () => {
+      const res = await api.get(
         "/auth/notification-preference",
-        {
-          ativo: novoValor,
-        },
         {
           withCredentials: true,
         }
       );
 
-      queryClient.invalidateQueries({
-        queryKey: ["notification-preference", user?.id],
-      });
+      return res.data.ativo;
+    },
+    enabled: !!user?.id,
+  });
 
-    } catch (error) {
-      console.error(
-        "Erro ao salvar preferência:",
-        error
-      );
 
-      setPreferencias((prev) => ({
-        ...prev,
-        [chave]: !novoValor,
-      }));
+  const handleTogglePreferencias = async (
+    chave: keyof Preferencias
+  ) => {
+    const novoValor = !preferencias[chave];
+
+    setPreferencias((prev) => ({
+      ...prev,
+      [chave]: novoValor,
+    }));
+
+    if (chave === "notificacoesNovoAgendamento") {
+      try {
+        await api.put(
+          "/auth/notification-preference",
+          {
+            ativo: novoValor,
+          },
+          {
+            withCredentials: true,
+          }
+        );
+
+        queryClient.invalidateQueries({
+          queryKey: ["notification-preference", user?.id],
+        });
+
+      } catch (error) {
+        console.error(
+          "Erro ao salvar preferência:",
+          error
+        );
+
+        setPreferencias((prev) => ({
+          ...prev,
+          [chave]: !novoValor,
+        }));
+      }
+
+      return;
     }
 
-    return;
-  }
-
-  localStorage.setItem(
-    "@TKBarber:preferences",
-    JSON.stringify({
-      ...preferencias,
-      [chave]: novoValor,
-    })
-  );
-};
+    localStorage.setItem(
+      "@TKBarber:preferences",
+      JSON.stringify({
+        ...preferencias,
+        [chave]: novoValor,
+      })
+    );
+  };
 
   const [nomeBarbeiro, setNomeBarbeiro] = useState<string>(() => {
     const usuarioSalvo = localStorage.getItem("@TKBarber:user");
@@ -177,14 +177,14 @@ const {
     }
   }, [serverData]);
 
-useEffect(() => {
-  if (notificacaoPreference !== undefined) {
-    setPreferencias((prev) => ({
-      ...prev,
-      notificacoesNovoAgendamento: notificacaoPreference,
-    }));
-  }
-}, [notificacaoPreference]);
+  useEffect(() => {
+    if (notificacaoPreference !== undefined) {
+      setPreferencias((prev) => ({
+        ...prev,
+        notificacoesNovoAgendamento: notificacaoPreference,
+      }));
+    }
+  }, [notificacaoPreference]);
 
   // UPLOAD DA FOTO
   const handleMudancaArquivo = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -461,19 +461,19 @@ useEffect(() => {
                           {isEditandoGrade ? (
                             <div className="space-y-1">
                               <label className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Intervalo dos Slots</label>
-                             <select
-  disabled={!config.trabalha}
-  value={config.intervaloMinutos}
-  onChange={(e) => handleHorarioChange(index, "intervaloMinutos", Number(e.target.value))}
-  className="bg-background border border-border rounded-lg px-2 py-1.5 text-xs text-foreground w-full cursor-pointer disabled:opacity-40"
->
-  <option value={5}>A cada 5 min</option>
-  <option value={10}>A cada 10 min</option>
-  <option value={15}>A cada 15 min</option>
-  <option value={30}>A cada 30 min</option>
-  <option value={45}>A cada 45 min</option>
-  <option value={60}>A cada 1 hora</option>
-</select>
+                              <select
+                                disabled={!config.trabalha}
+                                value={config.intervaloMinutos}
+                                onChange={(e) => handleHorarioChange(index, "intervaloMinutos", Number(e.target.value))}
+                                className="bg-background border border-border rounded-lg px-2 py-1.5 text-xs text-foreground w-full cursor-pointer disabled:opacity-40"
+                              >
+                                <option value={5}>A cada 5 min</option>
+                                <option value={10}>A cada 10 min</option>
+                                <option value={15}>A cada 15 min</option>
+                                <option value={30}>A cada 30 min</option>
+                                <option value={45}>A cada 45 min</option>
+                                <option value={60}>A cada 1 hora</option>
+                              </select>
                             </div>
                           ) : (
                             <span className="text-xs text-muted-foreground bg-zinc-900 border border-border/40 px-2.5 py-1 rounded-md max-w-max">
