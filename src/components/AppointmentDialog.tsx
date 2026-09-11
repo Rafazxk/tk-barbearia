@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { useBarber } from "@/contexts/BarberContext";
@@ -35,7 +35,7 @@ export function AppointmentDialog({
   appointment,
   onSubmit,
   isSubmitting,
-  selectedDate
+  selectedDate,
 }: AppointmentDialogProps) {
   const queryClient = useQueryClient();
   const { user } = useBarber();
@@ -47,8 +47,6 @@ export function AppointmentDialog({
     queryFn: async () => {
       const res = await api.get("/schedule-blocks");
       return res.data;
-
-      
     },
     enabled: open,
   });
@@ -61,72 +59,120 @@ export function AppointmentDialog({
   const [servicoIds, setServicoIds] = useState<number[]>([]);
   const [duracao, setDuracao] = useState(30);
   const [duracaoManual, setDuracaoManual] = useState(false);
-  
-  const { data: categorias = [], isLoading: isLoadingServices } = useQuery<Categoria[]>({
+  const [preco, setPreco] = useState<number>(0);
+  const [precoManual, setPrecoManual] = useState<boolean>(false);
+
+  const { data: categorias = [], isLoading: isLoadingServices } = useQuery<
+    Categoria[]
+  >({
     queryKey: ["categories-list"],
     queryFn: async () => {
       const res = await api.get("/categories/enriched");
-
       return res.data;
     },
     enabled: open,
   });
 
-  const { data: slotsDoExpediente = [], isLoading: isLoadingSlots } = useQuery<string[]>({
-    queryKey: ["available-slots-dinamicos", dataInput, user?.id, duracao, "barbeiro"],
+  const { data: slotsDoExpediente = [], isLoading: isLoadingSlots } = useQuery<
+    string[]
+  >({
+    queryKey: [
+      "available-slots-dinamicos",
+      dataInput,
+      user?.id,
+      duracao,
+      "barbeiro",
+    ],
     queryFn: async () => {
       const response = await api.get("/appointments/available", {
         params: {
           date: dataInput,
           barberId: user?.id,
           duracaoMinutos: duracao,
-          tipo: "barbeiro"
+          tipo: "barbeiro",
         },
-
-        
       });
-
-      return response.data; 
+      return response.data;
     },
     enabled: open && !!dataInput && !!user?.id,
   });
 
+  // Recálculo dinâmico de Duração e Preço
+  const recalcularTotais = (novosServicosIds: number[]) => {
+    const todosServicos = categorias.flatMap((cat) => cat.servicos);
+    const selecionados = todosServicos.filter((s) =>
+      novosServicosIds.includes(Number(s.id))
+    );
+
+    if (!duracaoManual) {
+      const totalDuracao = selecionados.reduce(
+        (acc, s) => acc + (s.duracao || 0),
+        0
+      );
+      setDuracao(totalDuracao > 0 ? totalDuracao : 30);
+    }
+
+    if (!precoManual) {
+      const totalPreco = selecionados.reduce(
+        (acc, s) => acc + (s.preco || 0),
+        0
+      );
+      setPreco(totalPreco);
+    }
+  };
+
+  const handleServiceChange = (id: number) => {
+    const novosIds = servicoIds.includes(id)
+      ? servicoIds.filter((item) => item !== id)
+      : [...servicoIds, id];
+
+    setServicoIds(novosIds);
+    recalcularTotais(novosIds);
+  };
 
   useEffect(() => {
-
     if (appointment && appointment.dataHora) {
       setClienteNome(appointment.clienteNome ?? "");
       setClienteTelefone(appointment.clienteTelefone ?? "");
 
       const [dataPart, timePart] = appointment.dataHora.split("T");
-      
+
       if (dataPart) setDataInput(dataPart);
       if (timePart) setHoraInput(timePart.substring(0, 5));
 
-      setServicoIds(
-        appointment.servicos?.map((s) => Number(s.id)) ?? []
-      );
+      setServicoIds(appointment.servicos?.map((s) => Number(s.id)) ?? []);
 
       setDuracao(appointment.totalDuracao ?? 30);
+      setPreco(
+        Number(appointment.totalPreco ?? appointment.preco ?? 0)
+      );
+
       setDuracaoManual(true);
+      setPrecoManual(true);
     } else {
       setClienteNome("");
       setClienteTelefone("");
 
-      const safeSelectedDate: Date = selectedDate instanceof Date && isValid(selectedDate) ? selectedDate : new Date();
+      const safeSelectedDate: Date =
+        selectedDate instanceof Date && isValid(selectedDate)
+          ? selectedDate
+          : new Date();
       const currentSelectedStr = format(safeSelectedDate, "yyyy-MM-dd");
 
-      const dataInicial = currentSelectedStr < hojeStr ? hojeStr : currentSelectedStr;
+      const dataInicial =
+        currentSelectedStr < hojeStr ? hojeStr : currentSelectedStr;
 
       setDataInput(dataInicial);
       setHoraInput("");
       setServicoIds([]);
       setDuracao(30);
-      setDuracaoManual(false); 
+      setPreco(0);
+      setDuracaoManual(false);
+      setPrecoManual(false);
     }
   }, [appointment, open, selectedDate]);
 
-const opcoesDeHorario = useMemo(() => {
+  const opcoesDeHorario = useMemo(() => {
     return slotsDoExpediente;
   }, [slotsDoExpediente]);
 
@@ -135,92 +181,64 @@ const opcoesDeHorario = useMemo(() => {
     opcoesDeHorario.sort();
   }
 
-const handleServiceChange = (id: number) => {
-    const novosIds = servicoIds.includes(id)
-      ? servicoIds.filter(item => item !== id)
-      : [...servicoIds, id];
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-    setServicoIds(novosIds);
+    if (!horaInput || !user?.id) return;
 
-    if (!duracaoManual) {
-      const novaDuracao = categorias
-        .flatMap(c => c.servicos)
-        .filter(s => novosIds.includes(Number(s.id)))
-        .reduce((total, s) => total + s.duracao, 0);
+    const agendamentosDoDia =
+      queryClient.getQueryData<Appointment[]>([
+        "appointments",
+        dataInput,
+        user.id,
+      ]) ?? [];
 
-      if (novaDuracao > 0) {
-        setDuracao(novaDuracao);
+    const inicioNovoAgendamento = new Time(horaInput);
+    const inicioNovoMinutos = inicioNovoAgendamento.toMinutes();
+    const fimNovoMinutos = inicioNovoMinutos + duracao;
+
+    const conflitoDuracao = agendamentosDoDia.some((agendamento) => {
+      if (appointment && agendamento.id === appointment.id) {
+        return false;
+      }
+
+      const inicioExistente = new Time(
+        agendamento.dataHora.split("T")[1]?.substring(0, 5)
+      );
+      const inicioExistenteMinutos = inicioExistente.toMinutes();
+      const fimExistenteMinutos =
+        inicioExistenteMinutos + agendamento.totalDuracao;
+
+      return (
+        inicioNovoMinutos < fimExistenteMinutos &&
+        fimNovoMinutos > inicioExistenteMinutos
+      );
+    });
+
+    if (conflitoDuracao) {
+      const confirmar = window.confirm(
+        "O serviço selecionado ultrapassa o horário de outro agendamento.\n\nDeseja realmente realizar este agendamento?"
+      );
+
+      if (!confirmar) {
+        return;
       }
     }
+
+    const payload = {
+      clienteNome,
+      clienteTelefone,
+      dataHora: `${dataInput}T${horaInput}:00`,
+      barbeiroId: user.id,
+      servicoIds,
+      duracao,
+      preco,
+    };
+
+    await onSubmit(payload);
   };
-
- const handleFormSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-
-  if (!horaInput || !user?.id) return;
-
-  const agendamentosDoDia =
-    queryClient.getQueryData<Appointment[]>([
-      "appointments",
-      dataInput,
-      user.id,
-    ]) ?? [];
-
-  const inicioNovoAgendamento = new Time(horaInput);
-  const inicioNovoMinutos =
-    inicioNovoAgendamento.toMinutes();
-
-  const fimNovoMinutos =
-    inicioNovoMinutos + duracao;
-
-  const conflitoDuracao = agendamentosDoDia.some((agendamento) => {
-    // Se estiver editando o próprio agendamento,
-    // não devemos considerar ele como conflito.
-    if (appointment && agendamento.id === appointment.id) {
-      return false;
-    }
-
-    const inicioExistente =
-      new Time(agendamento.dataHora.split("T")[1]?.substring(0, 5));
-
-    const inicioExistenteMinutos =
-      inicioExistente.toMinutes();
-
-    const fimExistenteMinutos =
-      inicioExistenteMinutos +
-      agendamento.totalDuracao;
-
-    return (
-      inicioNovoMinutos < fimExistenteMinutos &&
-      fimNovoMinutos > inicioExistenteMinutos
-    );
-  });
-
-  if (conflitoDuracao) {
-    const confirmar = window.confirm(
-      "O serviço selecionado ultrapassa o horário de outro agendamento.\n\nDeseja realmente realizar este agendamento?"
-    );
-
-    if (!confirmar) {
-      return;
-    }
-  }
-
-  const payload = {
-    clienteNome,
-    clienteTelefone,
-    dataHora: `${dataInput}T${horaInput}:00`,
-    barbeiroId: user.id,
-    servicoIds,
-    duracao,
-  };
-
-  await onSubmit(payload);
-};
 
   if (!open) return null;
-
-
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
@@ -237,7 +255,9 @@ const handleServiceChange = (id: number) => {
         <form onSubmit={handleFormSubmit} className="space-y-4">
           {/* Nome do Cliente */}
           <div className="space-y-1">
-            <label className="text-xs font-medium text-zinc-300">Nome do Cliente</label>
+            <label className="text-xs font-medium text-zinc-300">
+              Nome do Cliente
+            </label>
             <input
               type="text"
               required
@@ -250,7 +270,9 @@ const handleServiceChange = (id: number) => {
 
           {/* Telefone do Cliente */}
           <div className="space-y-1">
-            <label className="text-xs font-medium text-zinc-300">WhatsApp / Telefone</label>
+            <label className="text-xs font-medium text-zinc-300">
+              WhatsApp / Telefone
+            </label>
             <input
               type="tel"
               placeholder="Ex: 81999999999"
@@ -278,7 +300,9 @@ const handleServiceChange = (id: number) => {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-medium text-zinc-300">Horário Disponível</label>
+              <label className="text-xs font-medium text-zinc-300">
+                Horário Disponível
+              </label>
               {isLoadingSlots ? (
                 <div className="flex items-center justify-center h-[38px] text-xs text-zinc-500 bg-zinc-900 border border-zinc-800 rounded-lg animate-pulse">
                   Carregando...
@@ -294,7 +318,9 @@ const handleServiceChange = (id: number) => {
                   onChange={(e) => setHoraInput(e.target.value)}
                   className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-amber-500 transition-colors cursor-pointer"
                 >
-                  <option value="" disabled>Selecione...</option>
+                  <option value="" disabled>
+                    Selecione...
+                  </option>
                   {opcoesDeHorario.map((hora) => (
                     <option key={hora} value={hora}>
                       {hora}
@@ -305,31 +331,86 @@ const handleServiceChange = (id: number) => {
             </div>
           </div>
 
+          {/* Duração e Preço */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-medium text-zinc-300">
+                  Duração (min)
+                </label>
+                {duracaoManual && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDuracaoManual(false);
+                      recalcularTotais(servicoIds);
+                    }}
+                    className="text-[10px] text-amber-500 hover:underline"
+                  >
+                    Resetar
+                  </button>
+                )}
+              </div>
+              <input
+                type="number"
+                step="5"
+                min="5"
+                max="180"
+                value={duracao}
+                onChange={(e) => {
+                  setDuracao(Number(e.target.value));
+                  setDuracaoManual(true);
+                }}
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-amber-500 transition-colors"
+              />
+            </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-zinc-300">Duração (minutos)</label>
-            <input
-              type="number"
-              step="5"
-              min="5"
-              max="180"
-              value={duracao}
-              onChange={(e) => {
-                setDuracao(Number(e.target.value));
-                setDuracaoManual(true);
-              }}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-amber-500 transition-colors"
-            />
+            <div className="space-y-1">
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-medium text-zinc-300">
+                  Preço Total (R$)
+                </label>
+                {precoManual && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPrecoManual(false);
+                      recalcularTotais(servicoIds);
+                    }}
+                    className="text-[10px] text-amber-500 hover:underline"
+                  >
+                    Resetar
+                  </button>
+                )}
+              </div>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={preco}
+                onChange={(e) => {
+                  setPreco(Number(e.target.value));
+                  setPrecoManual(true);
+                }}
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-amber-500 transition-colors"
+              />
+            </div>
           </div>
 
           {/* Seleção de Serviços */}
           <div className="space-y-2">
-            <label className="text-xs font-medium text-zinc-300">Selecione os Serviços</label>
+            <label className="text-xs font-medium text-zinc-300">
+              Selecione os Serviços
+            </label>
             <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-lg p-3 space-y-4 max-h-48 overflow-y-auto subtle-scrollbar">
               {isLoadingServices ? (
-                <p className="text-xs text-zinc-500 animate-pulse text-center py-2">Carregando serviços...</p>
+                <p className="text-xs text-zinc-500 animate-pulse text-center py-2">
+                  Carregando serviços...
+                </p>
               ) : categorias.length === 0 ? (
-                <p className="text-xs text-zinc-500 text-center py-2">Nenhum serviço disponível.</p>
+                <p className="text-xs text-zinc-500 text-center py-2">
+                  Nenhum serviço disponível.
+                </p>
               ) : (
                 categorias.map((categoria) => (
                   <div key={categoria.id} className="space-y-1.5">
@@ -341,7 +422,10 @@ const handleServiceChange = (id: number) => {
                       {categoria.servicos.map((servico) => {
                         const numericId = Number(servico.id);
                         return (
-                          <label key={servico.id} className="flex items-center justify-between cursor-pointer text-sm text-zinc-300 select-none hover:text-zinc-100 py-0.5 group">
+                          <label
+                            key={servico.id}
+                            className="flex items-center justify-between cursor-pointer text-sm text-zinc-300 select-none hover:text-zinc-100 py-0.5 group"
+                          >
                             <div className="flex items-center gap-3">
                               <input
                                 type="checkbox"
@@ -352,7 +436,10 @@ const handleServiceChange = (id: number) => {
                               <span>{servico.nome}</span>
                             </div>
                             <span className="text-xs text-zinc-500 group-hover:text-amber-400/80 font-medium transition-colors">
-                              R$ {servico.preco ? servico.preco.toFixed(2).replace(".", ",") : "0,00"}
+                              R${" "}
+                              {servico.preco
+                                ? servico.preco.toFixed(2).replace(".", ",")
+                                : "0,00"}
                             </span>
                           </label>
                         );
@@ -377,10 +464,20 @@ const handleServiceChange = (id: number) => {
             </Button>
             <Button
               type="submit"
-              disabled={isSubmitting || servicoIds.length === 0 || isLoadingServices || opcoesDeHorario.length === 0 || !horaInput}
+              disabled={
+                isSubmitting ||
+                servicoIds.length === 0 ||
+                isLoadingServices ||
+                opcoesDeHorario.length === 0 ||
+                !horaInput
+              }
               className="bg-amber-500 text-zinc-950 hover:bg-amber-400 font-medium"
             >
-              {isSubmitting ? "Salvando..." : appointment ? "Atualizar" : "Confirmar"}
+              {isSubmitting
+                ? "Salvando..."
+                : appointment
+                ? "Atualizar"
+                : "Confirmar"}
             </Button>
           </div>
         </form>

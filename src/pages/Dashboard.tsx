@@ -19,6 +19,7 @@ export interface Appointment {
   clienteTelefone: string;
   dataHora: string;
   totalPreco: number; 
+  preco?: number;
   totalDuracao: number; 
   barbeiro?: { id: number; nome: string };
   servicos?: Array<{ 

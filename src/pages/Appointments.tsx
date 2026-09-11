@@ -14,6 +14,7 @@ interface Agendamento {
   clienteTelefone: string;
   dataHora: string;
   totalPreco: number;
+  preco?: number;
   barbeiro?: { id: number; nome: string };
   totalDuracao: number;
   servicos?: Array<{
