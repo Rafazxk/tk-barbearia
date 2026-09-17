@@ -120,11 +120,21 @@ const dateStr = `${year}-${month}-${day}`;
   const { data: summary, isLoading: summaryLoading } = useQuery<DashboardSummary>({
     queryKey: ["dashboardSummary", activeBarberId],
     queryFn: async () => {
-      const response = await api.get(`/financial/summary?barberId=${activeBarberId}`);
+      const response = await api.get(`/appointments/summary?barberId=${activeBarberId}`);
       return response.data;
     },
     enabled: !!activeBarberId,
   });
+
+const { data: financialSummary, isLoading: financialLoading } = useQuery({
+  queryKey: ["financialSummary", activeBarberId],
+  queryFn: async () => {
+    const response = await api.get(`/financial/summary?barberId=${activeBarberId}`);
+    return response.data;
+  },
+  enabled: !!activeBarberId,
+});
+
 
   const { data: appointments = [], isLoading: apptLoading } = useQuery<Appointment[]>({
     queryKey: ["appointments", dateStr, activeBarberId],
@@ -254,7 +264,7 @@ const verificarConflito = (payload: any): boolean => {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard title="Agendamentos Hoje" value={String(summary?.appointmentsToday ?? 0)} sub={`${summary?.pendingCount ?? 0} pendentes`} icon={Scissors} loading={summaryLoading} />
-        <StatCard title="Faturamento Hoje" value={`R$ ${summary?.revenueToday ?? "0.00"}`} icon={DollarSign} loading={summaryLoading} />
+        <StatCard title="Faturamento Hoje" value={`R$ ${Number(financialSummary?.revenueToday ?? 0).toFixed(2)}`} icon={DollarSign} loading={financialLoading} />
         <StatCard title="Semana Atual" value={String(summary?.appointmentsThisWeek ?? 0)} sub="agendamentos" icon={TrendingUp} loading={summaryLoading} />
       </div>
 
