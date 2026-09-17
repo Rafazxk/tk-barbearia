@@ -116,25 +116,27 @@ const month = String(date.getMonth() + 1).padStart(2, '0');
 const day = String(date.getDate()).padStart(2, '0');
 const dateStr = `${year}-${month}-${day}`;
 
-  // --- QUERIES ---
   const { data: summary, isLoading: summaryLoading } = useQuery<DashboardSummary>({
-    queryKey: ["dashboardSummary", activeBarberId],
+    queryKey: ["dashboardSummary", dateStr, activeBarberId],
     queryFn: async () => {
-      const response = await api.get(`/appointments/summary?barberId=${activeBarberId}`);
+      const response = await api.get("/appointments/summary", {
+        params: { date: dateStr, barberId: activeBarberId }
+      });
       return response.data;
     },
     enabled: !!activeBarberId,
   });
 
-const { data: financialSummary, isLoading: financialLoading } = useQuery({
-  queryKey: ["financialSummary", activeBarberId],
-  queryFn: async () => {
-    const response = await api.get(`/financial/summary?barberId=${activeBarberId}`);
-    return response.data;
-  },
-  enabled: !!activeBarberId,
-});
-
+  const { data: financialSummary, isLoading: financialLoading } = useQuery({
+    queryKey: ["financialSummary", dateStr, activeBarberId],
+    queryFn: async () => {
+      const response = await api.get("/financial/summary", {
+        params: { date: dateStr, barberId: activeBarberId }
+      });
+      return response.data;
+    },
+    enabled: !!activeBarberId,
+  });
 
   const { data: appointments = [], isLoading: apptLoading } = useQuery<Appointment[]>({
     queryKey: ["appointments", dateStr, activeBarberId],
@@ -146,8 +148,7 @@ const { data: financialSummary, isLoading: financialLoading } = useQuery({
     },
     enabled: !!activeBarberId,
   });
-
-
+  
   const deleteAppt = useMutation({
     mutationFn: async ({ id }: { id: number }) => {
       await api.delete(`/appointments/${id}`);
