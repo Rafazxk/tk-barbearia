@@ -120,7 +120,7 @@ const dateStr = `${year}-${month}-${day}`;
   const { data: summary, isLoading: summaryLoading } = useQuery<DashboardSummary>({
     queryKey: ["dashboardSummary", activeBarberId],
     queryFn: async () => {
-      const response = await api.get(`/appointments/summary?barberId=${activeBarberId}`);
+      const response = await api.get(`/financial/summary?barberId=${activeBarberId}`);
       return response.data;
     },
     enabled: !!activeBarberId,
