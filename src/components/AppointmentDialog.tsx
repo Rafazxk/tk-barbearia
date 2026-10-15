@@ -29,6 +29,13 @@ interface Categoria {
   servicos: Servico[];
 }
 
+interface Bloqueio {
+  tipo: string;
+  dataInicio: string;
+  horaInicio: string;
+  horaFim: string;
+}
+
 export function AppointmentDialog({
   open,
   onOpenChange,
@@ -42,7 +49,7 @@ export function AppointmentDialog({
 
   const hojeStr = format(new Date(), "yyyy-MM-dd");
 
-  const { data: bloqueios = [] } = useQuery({
+  const { data: bloqueios = [] } = useQuery<Bloqueio[]>({
     queryKey: ["schedule-blocks"],
     queryFn: async () => {
       const res = await api.get("/schedule-blocks");
@@ -51,6 +58,7 @@ export function AppointmentDialog({
     enabled: open,
   });
 
+  // Estados do formulário
   const [clienteNome, setClienteNome] = useState("");
   const [clienteTelefone, setClienteTelefone] = useState("");
   const [dataInput, setDataInput] = useState("");
@@ -58,6 +66,8 @@ export function AppointmentDialog({
   const [servicoIds, setServicoIds] = useState<number[]>([]);
   const [duracao, setDuracao] = useState(30);
   const [duracaoManual, setDuracaoManual] = useState(false);
+  const [preco, setPreco] = useState(0);
+  const [precoManual, setPrecoManual] = useState(false);
 
   const {
     data: categorias = [],
@@ -97,7 +107,53 @@ export function AppointmentDialog({
     enabled: open && !!dataInput && !!user?.id,
   });
 
+  // Recalcula a duração e o preço conforme os serviços selecionados.
+  // Os parâmetros permitem forçar o recálculo ao clicar em Resetar.
+  const recalcularTotais = (
+    novosServicosIds: number[],
+    forcarDuracao = false,
+    forcarPreco = false
+  ) => {
+    const todosServicos = categorias.flatMap(
+      (categoria) => categoria.servicos
+    );
+
+    const selecionados = todosServicos.filter((servico) =>
+      novosServicosIds.includes(Number(servico.id))
+    );
+
+    if (!duracaoManual || forcarDuracao) {
+      const totalDuracao = selecionados.reduce(
+        (total, servico) => total + (Number(servico.duracao) || 0),
+        0
+      );
+
+      setDuracao(totalDuracao > 0 ? totalDuracao : 30);
+    }
+
+    if (!precoManual || forcarPreco) {
+      const totalPreco = selecionados.reduce(
+        (total, servico) => total + (Number(servico.preco) || 0),
+        0
+      );
+
+      setPreco(totalPreco);
+    }
+  };
+
+  const handleServiceChange = (id: number) => {
+    const novosIds = servicoIds.includes(id)
+      ? servicoIds.filter((item) => item !== id)
+      : [...servicoIds, id];
+
+    setServicoIds(novosIds);
+    recalcularTotais(novosIds);
+  };
+
+  // Preenche os dados na edição ou limpa o formulário na criação.
   useEffect(() => {
+    if (!open) return;
+
     if (appointment && appointment.dataHora) {
       setClienteNome(appointment.clienteNome ?? "");
       setClienteTelefone(appointment.clienteTelefone ?? "");
@@ -108,11 +164,17 @@ export function AppointmentDialog({
       if (timePart) setHoraInput(timePart.substring(0, 5));
 
       setServicoIds(
-        appointment.servicos?.map((s) => Number(s.id)) ?? []
+        appointment.servicos?.map((servico) => Number(servico.id)) ?? []
       );
 
       setDuracao(appointment.totalDuracao ?? 30);
+      setPreco(
+        Number(appointment.totalPreco ?? appointment.preco ?? 0)
+      );
+
+      // Preserva os valores existentes durante a edição.
       setDuracaoManual(true);
+      setPrecoManual(true);
     } else {
       setClienteNome("");
       setClienteTelefone("");
@@ -122,33 +184,43 @@ export function AppointmentDialog({
           ? selectedDate
           : new Date();
 
-      const currentSelectedStr = format(
+      const dataSelecionada = format(
         safeSelectedDate,
         "yyyy-MM-dd"
       );
 
       const dataInicial =
-        currentSelectedStr < hojeStr
-          ? hojeStr
-          : currentSelectedStr;
+        dataSelecionada < hojeStr ? hojeStr : dataSelecionada;
 
       setDataInput(dataInicial);
       setHoraInput("");
       setServicoIds([]);
       setDuracao(30);
+      setPreco(0);
       setDuracaoManual(false);
+      setPrecoManual(false);
     }
   }, [appointment, open, selectedDate]);
 
+  // Filtra os horários bloqueados e preserva o horário atual na edição.
   const opcoesDeHorario = useMemo(() => {
-    return slotsDoExpediente.filter((hora) => {
-      const ehBloqueado = bloqueios.some((b: any) => {
-        if (b.tipo === "data" && b.dataInicio === dataInput) {
+    const horarios = slotsDoExpediente.filter((hora) => {
+      const ehBloqueado = bloqueios.some((bloqueio) => {
+        if (
+          bloqueio.tipo === "data" &&
+          bloqueio.dataInicio === dataInput
+        ) {
           return true;
         }
 
-        if (b.tipo === "horario" && b.dataInicio === dataInput) {
-          return hora >= b.horaInicio && hora <= b.horaFim;
+        if (
+          bloqueio.tipo === "horario" &&
+          bloqueio.dataInicio === dataInput
+        ) {
+          return (
+            hora >= bloqueio.horaInicio &&
+            hora <= bloqueio.horaFim
+          );
         }
 
         return false;
@@ -156,37 +228,37 @@ export function AppointmentDialog({
 
       return !ehBloqueado;
     });
-  }, [slotsDoExpediente, bloqueios, dataInput]);
 
-  // Na edição, mantém disponível o horário atual do agendamento.
-  if (appointment && horaInput && !opcoesDeHorario.includes(horaInput)) {
-    opcoesDeHorario.push(horaInput);
-    opcoesDeHorario.sort();
-  }
-
-  const handleServiceChange = (id: number) => {
-    const novosIds = servicoIds.includes(id)
-      ? servicoIds.filter((item) => item !== id)
-      : [...servicoIds, id];
-
-    setServicoIds(novosIds);
-
-    if (!duracaoManual) {
-      const novaDuracao = categorias
-        .flatMap((categoria) => categoria.servicos)
-        .filter((servico) => novosIds.includes(Number(servico.id)))
-        .reduce((total, servico) => total + servico.duracao, 0);
-
-      if (novaDuracao > 0) {
-        setDuracao(novaDuracao);
-      }
+    if (
+      appointment &&
+      horaInput &&
+      !horarios.includes(horaInput)
+    ) {
+      horarios.push(horaInput);
     }
-  };
 
-  const handleFormSubmit = async (e: React.FormEvent) => {
+    return horarios.sort();
+  }, [
+    slotsDoExpediente,
+    bloqueios,
+    dataInput,
+    appointment,
+    horaInput,
+  ]);
+
+  const handleFormSubmit = async (
+    e: React.FormEvent<HTMLFormElement>
+  ) => {
     e.preventDefault();
 
-    if (!horaInput || !user?.id) return;
+    if (!clienteNome.trim() || !dataInput || !horaInput || !user?.id) {
+      return;
+    }
+
+    if (servicoIds.length === 0) {
+      window.alert("Selecione pelo menos um serviço.");
+      return;
+    }
 
     const agendamentosDoDia =
       queryClient.getQueryData<Appointment[]>([
@@ -195,8 +267,7 @@ export function AppointmentDialog({
         user.id,
       ]) ?? [];
 
-    const inicioNovoAgendamento = new Time(horaInput);
-    const inicioNovoMinutos = inicioNovoAgendamento.toMinutes();
+    const inicioNovoMinutos = new Time(horaInput).toMinutes();
     const fimNovoMinutos = inicioNovoMinutos + duracao;
 
     const conflitoDuracao = agendamentosDoDia.some((agendamento) => {
@@ -210,8 +281,8 @@ export function AppointmentDialog({
 
       if (!horaExistente) return false;
 
-      const inicioExistente = new Time(horaExistente);
-      const inicioExistenteMinutos = inicioExistente.toMinutes();
+      const inicioExistenteMinutos =
+        new Time(horaExistente).toMinutes();
 
       const fimExistenteMinutos =
         inicioExistenteMinutos + agendamento.totalDuracao;
@@ -232,11 +303,13 @@ export function AppointmentDialog({
 
     const payload = {
       clienteNome: clienteNome.trim(),
+      // O telefone é opcional para agendamentos feitos pelo barbeiro.
       clienteTelefone: clienteTelefone.trim() || "",
       dataHora: `${dataInput}T${horaInput}:00`,
       barbeiroId: user.id,
       servicoIds,
       duracao,
+      preco,
     };
 
     await onSubmit(payload);
@@ -260,7 +333,7 @@ export function AppointmentDialog({
         </div>
 
         <form onSubmit={handleFormSubmit} className="space-y-4">
-          {/* Nome do Cliente */}
+          {/* Nome do cliente */}
           <div className="space-y-1">
             <label className="text-xs font-medium text-zinc-300">
               Nome do Cliente
@@ -276,7 +349,7 @@ export function AppointmentDialog({
             />
           </div>
 
-          {/* Telefone opcional */}
+          {/* Telefone opcional para o barbeiro */}
           <div className="space-y-1">
             <label className="text-xs font-medium text-zinc-300">
               WhatsApp / Telefone (opcional)
@@ -345,24 +418,76 @@ export function AppointmentDialog({
             </div>
           </div>
 
-          {/* Duração */}
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-zinc-300">
-              Duração (minutos)
-            </label>
+          {/* Duração e preço total */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-medium text-zinc-300">
+                  Duração (min)
+                </label>
 
-            <input
-              type="number"
-              step="5"
-              min="10"
-              max="180"
-              value={duracao}
-              onChange={(e) => {
-                setDuracao(Number(e.target.value));
-                setDuracaoManual(true);
-              }}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-amber-500 transition-colors"
-            />
+                {duracaoManual && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDuracaoManual(false);
+                      recalcularTotais(servicoIds, true, false);
+                    }}
+                    className="text-[10px] text-amber-500 hover:underline"
+                  >
+                    Resetar
+                  </button>
+                )}
+              </div>
+
+              <input
+                type="number"
+                step="5"
+                min="5"
+                max="180"
+                required
+                value={duracao}
+                onChange={(e) => {
+                  setDuracao(Number(e.target.value));
+                  setDuracaoManual(true);
+                }}
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-amber-500 transition-colors"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-medium text-zinc-300">
+                  Preço Total (R$)
+                </label>
+
+                {precoManual && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPrecoManual(false);
+                      recalcularTotais(servicoIds, false, true);
+                    }}
+                    className="text-[10px] text-amber-500 hover:underline"
+                  >
+                    Resetar
+                  </button>
+                )}
+              </div>
+
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                value={preco}
+                onChange={(e) => {
+                  setPreco(Number(e.target.value));
+                  setPrecoManual(true);
+                }}
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-amber-500 transition-colors"
+              />
+            </div>
           </div>
 
           {/* Seleção de serviços */}
@@ -411,9 +536,9 @@ export function AppointmentDialog({
 
                             <span className="text-xs text-zinc-500 group-hover:text-amber-400/80 font-medium transition-colors">
                               R${" "}
-                              {servico.preco
-                                ? servico.preco.toFixed(2).replace(".", ",")
-                                : "0,00"}
+                              {Number(servico.preco || 0)
+                                .toFixed(2)
+                                .replace(".", ",")}
                             </span>
                           </label>
                         );
@@ -443,6 +568,7 @@ export function AppointmentDialog({
                 isSubmitting ||
                 servicoIds.length === 0 ||
                 isLoadingServices ||
+                isLoadingSlots ||
                 opcoesDeHorario.length === 0 ||
                 !horaInput
               }
@@ -460,4 +586,3 @@ export function AppointmentDialog({
     </div>
   );
 }
-
