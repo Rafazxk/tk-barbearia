@@ -361,13 +361,23 @@ const verificarConflito = (payload: any): boolean => {
 >
   <Edit className="h-3.5 w-3.5" />
 </Button>
-                    <Button
-                      variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-red-400"
-                      onClick={() => deleteAppt.mutate({ id: appt.id })}
-                      disabled={deleteAppt.isPending}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                   <Button
+  variant="ghost"
+  size="icon"
+  className="h-8 w-8 text-zinc-400 hover:text-red-400"
+  onClick={() => {
+    const confirmar = window.confirm(
+      `Tem certeza que deseja excluir o agendamento de ${appt.clienteNome}?`
+    );
+
+    if (confirmar) {
+      deleteAppt.mutate({ id: appt.id });
+    }
+  }}
+  disabled={deleteAppt.isPending}
+>
+  <Trash2 className="h-3.5 w-3.5" />
+</Button>
                   </div>
                 </CardContent>
               </Card>

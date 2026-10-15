@@ -51,7 +51,6 @@ export function AppointmentDialog({
     enabled: open,
   });
 
-  // Estados locais do formulário
   const [clienteNome, setClienteNome] = useState("");
   const [clienteTelefone, setClienteTelefone] = useState("");
   const [dataInput, setDataInput] = useState("");
@@ -59,12 +58,11 @@ export function AppointmentDialog({
   const [servicoIds, setServicoIds] = useState<number[]>([]);
   const [duracao, setDuracao] = useState(30);
   const [duracaoManual, setDuracaoManual] = useState(false);
-  const [preco, setPreco] = useState<number>(0);
-  const [precoManual, setPrecoManual] = useState<boolean>(false);
 
-  const { data: categorias = [], isLoading: isLoadingServices } = useQuery<
-    Categoria[]
-  >({
+  const {
+    data: categorias = [],
+    isLoading: isLoadingServices,
+  } = useQuery<Categoria[]>({
     queryKey: ["categories-list"],
     queryFn: async () => {
       const res = await api.get("/categories/enriched");
@@ -73,9 +71,10 @@ export function AppointmentDialog({
     enabled: open,
   });
 
-  const { data: slotsDoExpediente = [], isLoading: isLoadingSlots } = useQuery<
-    string[]
-  >({
+  const {
+    data: slotsDoExpediente = [],
+    isLoading: isLoadingSlots,
+  } = useQuery<string[]>({
     queryKey: [
       "available-slots-dinamicos",
       dataInput,
@@ -92,43 +91,11 @@ export function AppointmentDialog({
           tipo: "barbeiro",
         },
       });
+
       return response.data;
     },
     enabled: open && !!dataInput && !!user?.id,
   });
-
-  // Recálculo dinâmico de Duração e Preço
-  const recalcularTotais = (novosServicosIds: number[]) => {
-    const todosServicos = categorias.flatMap((cat) => cat.servicos);
-    const selecionados = todosServicos.filter((s) =>
-      novosServicosIds.includes(Number(s.id))
-    );
-
-    if (!duracaoManual) {
-      const totalDuracao = selecionados.reduce(
-        (acc, s) => acc + (s.duracao || 0),
-        0
-      );
-      setDuracao(totalDuracao > 0 ? totalDuracao : 30);
-    }
-
-    if (!precoManual) {
-      const totalPreco = selecionados.reduce(
-        (acc, s) => acc + (s.preco || 0),
-        0
-      );
-      setPreco(totalPreco);
-    }
-  };
-
-  const handleServiceChange = (id: number) => {
-    const novosIds = servicoIds.includes(id)
-      ? servicoIds.filter((item) => item !== id)
-      : [...servicoIds, id];
-
-    setServicoIds(novosIds);
-    recalcularTotais(novosIds);
-  };
 
   useEffect(() => {
     if (appointment && appointment.dataHora) {
@@ -140,46 +107,81 @@ export function AppointmentDialog({
       if (dataPart) setDataInput(dataPart);
       if (timePart) setHoraInput(timePart.substring(0, 5));
 
-      setServicoIds(appointment.servicos?.map((s) => Number(s.id)) ?? []);
-
-      setDuracao(appointment.totalDuracao ?? 30);
-      setPreco(
-        Number(appointment.totalPreco ?? appointment.preco ?? 0)
+      setServicoIds(
+        appointment.servicos?.map((s) => Number(s.id)) ?? []
       );
 
+      setDuracao(appointment.totalDuracao ?? 30);
       setDuracaoManual(true);
-      setPrecoManual(true);
     } else {
       setClienteNome("");
       setClienteTelefone("");
 
-      const safeSelectedDate: Date =
+      const safeSelectedDate =
         selectedDate instanceof Date && isValid(selectedDate)
           ? selectedDate
           : new Date();
-      const currentSelectedStr = format(safeSelectedDate, "yyyy-MM-dd");
+
+      const currentSelectedStr = format(
+        safeSelectedDate,
+        "yyyy-MM-dd"
+      );
 
       const dataInicial =
-        currentSelectedStr < hojeStr ? hojeStr : currentSelectedStr;
+        currentSelectedStr < hojeStr
+          ? hojeStr
+          : currentSelectedStr;
 
       setDataInput(dataInicial);
       setHoraInput("");
       setServicoIds([]);
       setDuracao(30);
-      setPreco(0);
       setDuracaoManual(false);
-      setPrecoManual(false);
     }
   }, [appointment, open, selectedDate]);
 
   const opcoesDeHorario = useMemo(() => {
-    return slotsDoExpediente;
-  }, [slotsDoExpediente]);
+    return slotsDoExpediente.filter((hora) => {
+      const ehBloqueado = bloqueios.some((b: any) => {
+        if (b.tipo === "data" && b.dataInicio === dataInput) {
+          return true;
+        }
 
+        if (b.tipo === "horario" && b.dataInicio === dataInput) {
+          return hora >= b.horaInicio && hora <= b.horaFim;
+        }
+
+        return false;
+      });
+
+      return !ehBloqueado;
+    });
+  }, [slotsDoExpediente, bloqueios, dataInput]);
+
+  // Na edição, mantém disponível o horário atual do agendamento.
   if (appointment && horaInput && !opcoesDeHorario.includes(horaInput)) {
     opcoesDeHorario.push(horaInput);
     opcoesDeHorario.sort();
   }
+
+  const handleServiceChange = (id: number) => {
+    const novosIds = servicoIds.includes(id)
+      ? servicoIds.filter((item) => item !== id)
+      : [...servicoIds, id];
+
+    setServicoIds(novosIds);
+
+    if (!duracaoManual) {
+      const novaDuracao = categorias
+        .flatMap((categoria) => categoria.servicos)
+        .filter((servico) => novosIds.includes(Number(servico.id)))
+        .reduce((total, servico) => total + servico.duracao, 0);
+
+      if (novaDuracao > 0) {
+        setDuracao(novaDuracao);
+      }
+    }
+  };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -202,10 +204,15 @@ export function AppointmentDialog({
         return false;
       }
 
-      const inicioExistente = new Time(
-        agendamento.dataHora.split("T")[1]?.substring(0, 5)
-      );
+      const horaExistente = agendamento.dataHora
+        .split("T")[1]
+        ?.substring(0, 5);
+
+      if (!horaExistente) return false;
+
+      const inicioExistente = new Time(horaExistente);
       const inicioExistenteMinutos = inicioExistente.toMinutes();
+
       const fimExistenteMinutos =
         inicioExistenteMinutos + agendamento.totalDuracao;
 
@@ -220,19 +227,16 @@ export function AppointmentDialog({
         "O serviço selecionado ultrapassa o horário de outro agendamento.\n\nDeseja realmente realizar este agendamento?"
       );
 
-      if (!confirmar) {
-        return;
-      }
+      if (!confirmar) return;
     }
 
     const payload = {
-      clienteNome,
-      clienteTelefone,
+      clienteNome: clienteNome.trim(),
+      clienteTelefone: clienteTelefone.trim() || "",
       dataHora: `${dataInput}T${horaInput}:00`,
       barbeiroId: user.id,
       servicoIds,
       duracao,
-      preco,
     };
 
     await onSubmit(payload);
@@ -245,8 +249,11 @@ export function AppointmentDialog({
       <div className="bg-zinc-950 border border-zinc-800 p-6 rounded-xl max-w-md w-full shadow-2xl space-y-4">
         <div>
           <h2 className="text-lg font-bold text-zinc-100">
-            {appointment ? "✏️ Editar Agendamento" : "💈 Novo Agendamento"}
+            {appointment
+              ? "✏️ Editar Agendamento"
+              : "💈 Novo Agendamento"}
           </h2>
+
           <p className="text-xs text-zinc-400 mt-0.5">
             Escolha a data e selecione um dos horários calculados para o seu expediente.
           </p>
@@ -258,6 +265,7 @@ export function AppointmentDialog({
             <label className="text-xs font-medium text-zinc-300">
               Nome do Cliente
             </label>
+
             <input
               type="text"
               required
@@ -268,11 +276,12 @@ export function AppointmentDialog({
             />
           </div>
 
-          {/* Telefone do Cliente */}
+          {/* Telefone opcional */}
           <div className="space-y-1">
             <label className="text-xs font-medium text-zinc-300">
-              WhatsApp / Telefone
+              WhatsApp / Telefone (opcional)
             </label>
+
             <input
               type="tel"
               placeholder="Ex: 81999999999"
@@ -282,10 +291,13 @@ export function AppointmentDialog({
             />
           </div>
 
-          {/* Data e Horário */}
+          {/* Data e horário */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-zinc-300">Data</label>
+              <label className="text-xs font-medium text-zinc-300">
+                Data
+              </label>
+
               <input
                 type="date"
                 required
@@ -303,6 +315,7 @@ export function AppointmentDialog({
               <label className="text-xs font-medium text-zinc-300">
                 Horário Disponível
               </label>
+
               {isLoadingSlots ? (
                 <div className="flex items-center justify-center h-[38px] text-xs text-zinc-500 bg-zinc-900 border border-zinc-800 rounded-lg animate-pulse">
                   Carregando...
@@ -321,6 +334,7 @@ export function AppointmentDialog({
                   <option value="" disabled>
                     Selecione...
                   </option>
+
                   {opcoesDeHorario.map((hora) => (
                     <option key={hora} value={hora}>
                       {hora}
@@ -331,77 +345,32 @@ export function AppointmentDialog({
             </div>
           </div>
 
-          {/* Duração e Preço */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <div className="flex justify-between items-center">
-                <label className="text-xs font-medium text-zinc-300">
-                  Duração (min)
-                </label>
-                {duracaoManual && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDuracaoManual(false);
-                      recalcularTotais(servicoIds);
-                    }}
-                    className="text-[10px] text-amber-500 hover:underline"
-                  >
-                    Resetar
-                  </button>
-                )}
-              </div>
-              <input
-                type="number"
-                step="5"
-                min="5"
-                max="180"
-                value={duracao}
-                onChange={(e) => {
-                  setDuracao(Number(e.target.value));
-                  setDuracaoManual(true);
-                }}
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-amber-500 transition-colors"
-              />
-            </div>
+          {/* Duração */}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-zinc-300">
+              Duração (minutos)
+            </label>
 
-            <div className="space-y-1">
-              <div className="flex justify-between items-center">
-                <label className="text-xs font-medium text-zinc-300">
-                  Preço Total (R$)
-                </label>
-                {precoManual && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPrecoManual(false);
-                      recalcularTotais(servicoIds);
-                    }}
-                    className="text-[10px] text-amber-500 hover:underline"
-                  >
-                    Resetar
-                  </button>
-                )}
-              </div>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={preco}
-                onChange={(e) => {
-                  setPreco(Number(e.target.value));
-                  setPrecoManual(true);
-                }}
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-amber-500 transition-colors"
-              />
-            </div>
+            <input
+              type="number"
+              step="5"
+              min="10"
+              max="180"
+              value={duracao}
+              onChange={(e) => {
+                setDuracao(Number(e.target.value));
+                setDuracaoManual(true);
+              }}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-amber-500 transition-colors"
+            />
           </div>
 
-          {/* Seleção de Serviços */}
+          {/* Seleção de serviços */}
           <div className="space-y-2">
             <label className="text-xs font-medium text-zinc-300">
               Selecione os Serviços
             </label>
+
             <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-lg p-3 space-y-4 max-h-48 overflow-y-auto subtle-scrollbar">
               {isLoadingServices ? (
                 <p className="text-xs text-zinc-500 animate-pulse text-center py-2">
@@ -421,6 +390,7 @@ export function AppointmentDialog({
                     <div className="space-y-1.5 pl-1">
                       {categoria.servicos.map((servico) => {
                         const numericId = Number(servico.id);
+
                         return (
                           <label
                             key={servico.id}
@@ -430,11 +400,15 @@ export function AppointmentDialog({
                               <input
                                 type="checkbox"
                                 checked={servicoIds.includes(numericId)}
-                                onChange={() => handleServiceChange(numericId)}
+                                onChange={() =>
+                                  handleServiceChange(numericId)
+                                }
                                 className="accent-amber-500 h-4 w-4 rounded bg-zinc-900 border-zinc-800 text-amber-500 focus:ring-0"
                               />
+
                               <span>{servico.nome}</span>
                             </div>
+
                             <span className="text-xs text-zinc-500 group-hover:text-amber-400/80 font-medium transition-colors">
                               R${" "}
                               {servico.preco
@@ -451,7 +425,7 @@ export function AppointmentDialog({
             </div>
           </div>
 
-          {/* Botões de Ação */}
+          {/* Botões de ação */}
           <div className="flex justify-end gap-2 pt-2 border-t border-zinc-900">
             <Button
               type="button"
@@ -462,6 +436,7 @@ export function AppointmentDialog({
             >
               Cancelar
             </Button>
+
             <Button
               type="submit"
               disabled={
@@ -476,8 +451,8 @@ export function AppointmentDialog({
               {isSubmitting
                 ? "Salvando..."
                 : appointment
-                ? "Atualizar"
-                : "Confirmar"}
+                  ? "Atualizar"
+                  : "Confirmar"}
             </Button>
           </div>
         </form>
@@ -485,3 +460,4 @@ export function AppointmentDialog({
     </div>
   );
 }
+
